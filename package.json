@@ -5,7 +5,9 @@
   "scripts": {
     "build": "node scripts/build.js",
     "dev": "echo '开发模式：直接打开 dist/index.html'",
-    "serve": "npx http-server dist -p 8080"
+    "serve": "npx http-server dist -p 8080",
+    "editor": "node editor-server.js",
+    "publish": "node publish.js"
   },
   "keywords": [
     "homepage",

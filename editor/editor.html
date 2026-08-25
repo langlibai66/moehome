@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoeWah Editor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+    <!-- Top Bar -->
+    <header class="editor-header">
+        <div class="header-left">
+            <span class="logo"><span class="prompt">$</span> <span class="logo-text">MoeWah Editor</span></span>
+        </div>
+        <div class="header-center">
+            <span class="status-indicator" id="save-status">
+                <i class="fa-solid fa-circle-check"></i> 已保存
+            </span>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-secondary" id="btn-build" title="构建并预览">
+                <i class="fa-solid fa-eye"></i> 构建预览
+            </button>
+            <button class="btn btn-primary" id="btn-publish" title="构建并推送到 GitHub">
+                <i class="fa-solid fa-rocket"></i> 一键发布
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="editor-main">
+        <!-- Left: Cards Panel -->
+        <aside class="cards-panel" id="cards-panel">
+            <div class="panel-header">
+                <h2>配置面板</h2>
+                <div class="panel-actions">
+                    <button class="btn-icon" id="btn-collapse-all" title="全部折叠">
+                        <i class="fa-solid fa-compress"></i>
+                    </button>
+                    <button class="btn-icon" id="btn-expand-all" title="全部展开">
+                        <i class="fa-solid fa-expand"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="cards-scroll" id="cards-container">
+                <!-- Cards rendered by JS -->
+            </div>
+        </aside>
+
+        <!-- Resizer -->
+        <div class="panel-resizer" id="panel-resizer"></div>
+
+        <!-- Right: Preview Panel -->
+        <section class="preview-panel">
+            <div class="preview-header">
+                <div class="preview-tabs">
+                    <button class="preview-tab active" data-view="preview">
+                        <i class="fa-solid fa-eye"></i> 预览
+                    </button>
+                    <button class="preview-tab" data-view="config">
+                        <i class="fa-solid fa-code"></i> 源码
+                    </button>
+                </div>
+                <button class="btn-icon" id="btn-refresh-preview" title="刷新预览">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+            <div class="preview-body">
+                <iframe id="preview-iframe" src="/" sandbox="allow-scripts allow-same-origin"></iframe>
+                <pre id="config-source" class="hidden"><code id="config-code"></code></pre>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Modal Overlay -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h3 id="modal-title"></h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="editor.js"></script>
+</body>
+</html>
