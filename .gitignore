@@ -19,6 +19,7 @@ docs/
 .idea/
 *.swp
 *.swo
+.editor-backups/
 
 # Claude Code
 CLAUDE.md

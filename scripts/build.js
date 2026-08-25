@@ -2866,6 +2866,24 @@ async function build() {
         fs.mkdirSync(distImagesDir, { recursive: true });
     }
 
+    // 复制根目录 images/（头像、favicon 等静态图片）到 dist/images/
+    // 此前这些文件从不进入 dist，导致线上头像/favicon 404
+    const rootImagesDir = path.join(rootDir, 'images');
+    if (fs.existsSync(rootImagesDir)) {
+        for (const imgFile of fs.readdirSync(rootImagesDir)) {
+            const srcImgPath = path.join(rootImagesDir, imgFile);
+            if (!fs.statSync(srcImgPath).isFile()) continue;
+            const destImgPath = path.join(distImagesDir, imgFile);
+            try {
+                await processImageFile(srcImgPath, destImgPath, minifyConfig);
+                console.log('🖼️  images/' + imgFile + ' → dist/images/' + imgFile);
+            } catch (e) {
+                fs.copyFileSync(srcImgPath, destImgPath);
+                console.log('📋 images/' + imgFile + ' → dist/images/' + imgFile + ' (直接复制)');
+            }
+        }
+    }
+
     let faviconPath = '';
     let appleTouchPath = '';
 
@@ -2885,7 +2903,11 @@ async function build() {
 
     // 没有自定义 favicon 时，从头像自动生成（默认行为）
     if (!faviconPath) {
-        const avatarSrc = path.join(rootDir, 'src', config.avatar);
+        // 头像位置：优先 src/ 约定，其次根目录 images/ 约定（编辑器上传位置）
+        let avatarSrc = path.join(rootDir, 'src', config.avatar);
+        if (!fs.existsSync(avatarSrc)) {
+            avatarSrc = path.join(rootDir, config.avatar);
+        }
         const faviconDest = path.join(distDir, 'images/favicon.ico');
 
         if (fs.existsSync(avatarSrc)) {
@@ -2900,8 +2922,14 @@ async function build() {
                 console.log('   ⚠️ favicon 生成失败');
             }
         } else {
-            console.log('   ⚠️ 头像文件不存在: src/' + config.avatar);
+            console.log('   ⚠️ 头像文件不存在: ' + config.avatar);
         }
+    }
+
+    // favicon 均未生成时，若 images/ 里有现成 favicon.ico（已随上面复制进 dist），直接使用
+    if (!faviconPath && fs.existsSync(path.join(distImagesDir, 'favicon.ico'))) {
+        faviconPath = 'images/favicon.ico';
+        console.log('   ✓ 使用 images/favicon.ico');
     }
 
     // 生成 favicon HTML 链接
