@@ -714,21 +714,21 @@ async function saveConfig() {
 // ============================================================
 function showStatus(status) {
     const el = $('save-status');
-    el.classList.add('visible');
+    el.classList.add('show');
     if (status === 'saving') {
-        el.className = 'status-indicator visible';
+        el.className = 'save-status show';
         el.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
     } else if (status === 'saved') {
-        el.className = 'status-indicator visible';
+        el.className = 'save-status show';
         el.innerHTML = '<i class="fa-solid fa-circle-check"></i> 已保存';
-        setTimeout(() => el.classList.remove('visible'), 2500);
+        setTimeout(() => el.classList.remove('show'), 2500);
     } else if (status === 'error') {
-        el.className = 'status-indicator visible error';
+        el.className = 'save-status show error';
         el.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> 保存失败';
     } else {
-        el.className = 'status-indicator visible';
+        el.className = 'save-status show';
         el.innerHTML = '<i class="fa-solid fa-circle-check"></i> 就绪';
-        setTimeout(() => el.classList.remove('visible'), 2000);
+        setTimeout(() => el.classList.remove('show'), 2000);
     }
 }
 
@@ -810,15 +810,19 @@ function closeModal() { $('modal-overlay').classList.remove('active'); }
 // PREVIEW TABS
 // ============================================================
 function switchTab(view) {
-    document.querySelectorAll('.preview-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+    document.querySelectorAll('.preview-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.view === view);
+    });
     const iframe = $('preview-iframe');
     const source = $('config-source');
     if (view === 'preview') {
-        iframe.style.display = '';
-        source.style.display = 'none';
+        iframe.classList.remove('hidden');
+        source.classList.add('hidden');
+        source.classList.remove('visible');
     } else {
-        iframe.style.display = 'none';
-        source.style.display = '';
+        iframe.classList.add('hidden');
+        source.classList.remove('hidden');
+        source.classList.add('visible');
         $('config-code').textContent = rawConfig;
     }
 }

@@ -404,24 +404,15 @@ input[type="number"] { width: 80px; }
 .preview-tab:hover { color: var(--text2); background: var(--card); }
 .preview-tab.active { color: var(--accent); background: var(--accent-dim); }
 .preview-body { flex: 1; position: relative; overflow: hidden; }
-.preview-body iframe {
+.preview-body iframe, .preview-body #config-source {
+    position: absolute;
+    top: 0; left: 0;
     width: 100%; height: 100%;
-    border: none;
-    background: #fff;
 }
-#config-source {
-    display: none;
-    width: 100%; height: 100%;
-    overflow: auto;
-    padding: 16px;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 12px;
-    line-height: 1.7;
-    white-space: pre;
-    tab-size: 2;
-}
+.preview-body iframe { border: none; background: #fff; z-index: 1; }
+.preview-body iframe.hidden { display: none; }
+#config-source { z-index: 2; }
+#config-source.hidden { display: none; }
 #config-source.visible { display: block; }
 
 /* ========== TOAST ========== */
