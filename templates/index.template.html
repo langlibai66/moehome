@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, shrink-to-fit=no" />
+
+        <!-- Page Title (SEO: 尽早声明) -->
+        <title>{{TITLE}}</title>
+
+        <!-- SEO Meta Tags (由 build.js 从 config.js 注入) -->
+        <meta name="description" content="{{DESCRIPTION}}" />
+        <meta name="keywords" content="{{KEYWORDS}}" />
+
+        <!-- Open Graph / Facebook -->
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="{{OG_TITLE}}" />
+        <meta property="og:description" content="{{OG_DESCRIPTION}}" />
+        <meta property="og:image" content="{{OG_IMAGE}}" />
+
+        <!-- Twitter -->
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:title" content="{{OG_TITLE}}" />
+        <meta property="twitter:description" content="{{OG_DESCRIPTION}}" />
+        <meta property="twitter:image" content="{{OG_IMAGE}}" />
+
+        <!-- Favicon -->
+        {{FAVICON_LINKS}}
+
+        <!-- 主题初始化脚本（必须在所有 CSS 之前执行，防止闪烁）-->
+        {{THEME_INIT_SCRIPT}}
+
+        <!-- Fonts: 仅加载代码字体 JetBrains Mono，中文使用系统字体回退 -->
+        <link rel="preconnect" href="https://fonts.googleapis.cn" />
+        <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin />
+        <link
+            href="https://fonts.googleapis.cn/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+
+        <!-- Font Awesome Icons -->
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+            integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        />
+
+        <!-- Critical CSS for First Paint (inline ~4KB) -->
+        <style>
+            /* ========== Critical Base Styles ========== */
+            /* 默认主题变量由 build.js 注入，确保首次渲染就有颜色 */
+            /* 用户偏好由 theme-init-script 检测并覆盖 */
+            :root {
+                --navbar-height: 56px;
+                --navbar-bg: transparent;
+                --z-dropdown: 600;
+                --radius-md: 12px;
+                {{DEFAULT_THEME_VARS}}
+            }
+
+            /* ========== Reset & Base ========== */
+            *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+            html { scroll-behavior: smooth; height: 100%; -webkit-text-size-adjust: 100%; }
+            body {
+                font-family: "Avenir Next", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+                background: var(--bg-primary);
+                color: var(--text-primary);
+                overflow-x: hidden;
+                overflow-y: auto;
+                min-height: 100%;
+                position: relative;
+            }
+
+            /* ========== Navigation Bar ========== */
+            .navbar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: var(--navbar-height);
+                background: var(--navbar-bg);
+                z-index: 1000;
+                transition: background 0.3s ease;
+            }
+            .navbar.scrolled {
+                background: var(--navbar-bg-scrolled);
+                border-bottom: none;
+                box-shadow: inset 0 -1px 0 0 var(--border);
+            }
+            .navbar-inner {
+                max-width: 720px;
+                margin: 0 auto;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 24px;
+                gap: 24px;
+            }
+            .navbar-brand {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                text-decoration: none;
+                color: var(--text-primary);
+                font-size: 16px;
+                font-weight: 500;
+            }
+            .navbar-brand .prompt, .navbar-brand .brand-name { color: var(--accent); }
+            .navbar-menu { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
+            .nav-link {
+                position: relative;
+                padding: 8px 16px;
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-size: 14px;
+                font-weight: 500;
+                transition: color 0.2s ease;
+                white-space: nowrap;
+            }
+            .nav-link.active, .nav-link:hover { color: var(--accent); }
+            .navbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+            .nav-theme-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 36px;
+                height: 36px;
+                background: none;
+                border: none;
+                border-radius: 8px;
+                color: var(--text-secondary);
+                cursor: pointer;
+            }
+            .nav-theme-toggle:hover { color: var(--accent); }
+            .navbar-toggle { display: none; width: 36px; height: 36px; background: none; border: none; border-radius: 8px; color: var(--text-secondary); cursor: pointer; }
+
+            /* ========== Theme & Mobile Dropdowns (强制隐藏，防止闪烁) ========== */
+            .theme-dropdown,
+            .nav-mobile-dropdown {
+                position: fixed;
+                top: calc(var(--navbar-height) + 8px);
+                z-index: var(--z-dropdown);
+                min-width: 180px;
+                max-width: 280px;
+                background: var(--bg-primary);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                opacity: 0 !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+                transform: translateY(-8px);
+                transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+            }
+            .theme-dropdown { right: 24px; }
+            .nav-mobile-dropdown { right: 16px; }
+            .theme-dropdown.is-active,
+            .nav-mobile-dropdown.is-active {
+                opacity: 1 !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+                transform: translateY(0);
+            }
+
+            /* Theme dropdown inner styles */
+            .theme-section { padding: 4px 0; }
+            .theme-section-label {
+                padding: 6px 12px 2px;
+                font-size: 10px;
+                font-weight: 600;
+                color: var(--text-secondary);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .theme-mode-list { display: flex; flex-direction: column; }
+            .theme-mode-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 12px;
+                background: none;
+                border: none;
+                color: var(--text-primary);
+                cursor: pointer;
+                font-size: 12px;
+                text-align: left;
+                width: 100%;
+                transition: background 0.15s ease;
+            }
+            .theme-mode-item:hover { background: var(--hover-bg); }
+            .theme-mode-item.is-active { color: var(--accent); background: var(--active-bg); }
+            .theme-mode-item i {
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+                background: var(--bg-secondary);
+                font-size: 12px;
+            }
+            .theme-divider { height: 1px; background: var(--border); margin: 2px 0; }
+            .theme-scheme-list { padding: 0; max-height: 200px; overflow-y: auto; }
+            .theme-scheme-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 12px;
+                cursor: pointer;
+                transition: background 0.15s ease;
+                font-size: 12px;
+            }
+            .theme-scheme-item:hover { background: var(--hover-bg); }
+            .theme-scheme-item.is-active { background: var(--active-bg); }
+            .theme-scheme-item-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: var(--scheme-bg-primary, var(--bg-secondary));
+                border: 1px solid var(--scheme-border, var(--border));
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .theme-scheme-item-icon::after {
+                content: '';
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background: var(--scheme-accent, var(--accent));
+            }
+
+            /* ========== Main Container ========== */
+            .container {
+                position: relative;
+                z-index: 10;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                padding: 40px 20px;
+                padding-top: calc(var(--navbar-height) + 40px);
+                padding-bottom: 88px;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            /* ========== Profile Section ========== */
+            .profile {
+                text-align: center;
+                width: 100%;
+                max-width: 600px;
+                opacity: 0;
+                animation: fadeIn 1s ease forwards;
+            }
+            @keyframes fadeIn { to { opacity: 1; } }
+
+            /* ========== Avatar ========== */
+            .avatar-wrapper {
+                position: relative;
+                width: 140px;
+                height: 140px;
+                margin: 0 auto 40px;
+                contain: layout;
+                flex-shrink: 0;
+            }
+            .avatar {
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                position: relative;
+                overflow: hidden;
+                border: 3px solid var(--accent);
+                box-shadow: 0 0 0 4px var(--bg-primary), 0 0 40px var(--accent-dim), 0 20px 60px rgba(0, 0, 0, 0.5);
+            }
+            .avatar img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 1; }
+
+            /* ========== Name & Tagline ========== */
+            .name {
+                font-family: "JetBrains Mono", "SF Mono", "Cascadia Code", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: clamp(2rem, 6vw, 3.5rem);
+                font-weight: 600;
+                margin-bottom: 10px;
+                background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            .tagline {
+                font-size: clamp(0.9rem, 2vw, 1.1rem);
+                color: var(--text-secondary);
+                margin-bottom: 40px;
+                font-weight: 300;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            .tagline .highlight { color: var(--accent); font-weight: 500; }
+
+            /* ========== Skeleton Screen ========== */
+            .skeleton-container {
+                transition: opacity 0.3s ease;
+                position: absolute;
+                /* 匹配 .container 的 padding-top */
+                top: calc(var(--navbar-height) + 40px);
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 10;
+                pointer-events: none;
+                width: 100%;
+                max-width: 600px;
+                text-align: center;
+            }
+            #actual-content { position: relative; z-index: 5; }
+            .skeleton {
+                background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--border) 50%, var(--bg-secondary) 75%);
+                background-size: 200% 100%;
+                animation: skeleton-loading 1.5s ease-in-out infinite;
+            }
+            @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+            .skeleton-avatar { width: 140px; height: 140px; border-radius: 50%; margin: 0 auto 40px; flex-shrink: 0; }
+            .skeleton-name { width: clamp(150px, 30vw, 250px); height: clamp(32px, 5vw, 48px); border-radius: 8px; margin: 0 auto 20px; }
+            .skeleton-tagline { width: clamp(180px, 40vw, 300px); height: clamp(16px, 2vw, 24px); border-radius: 6px; margin: 0 auto 40px; }
+            .skeleton-terminal { width: 100%; max-width: 600px; min-height: 140px; border-radius: 12px; margin: 0 auto 40px; }
+            .skeleton-divider { width: 100%; height: 1px; margin: 48px 0; }
+            .skeleton-music { width: 100%; height: 34px; margin: 24px 0 40px; border-radius: 4px; }
+            .skeleton-footer { width: clamp(150px, 25vw, 220px); height: 16px; border-radius: 6px; margin: 20px auto; }
+
+            /* Content hidden state */
+            .content-initial-hidden { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+            .content-visible { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; transition: opacity 0.3s ease; }
+
+            /* ========== Donation Modal (Critical - 防止 CSS 加载延迟闪烁) ========== */
+            .donation__modal-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 2000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+            }
+            .donation__modal-overlay.is-active {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+            }
+
+            /* ========== Responsive - Mobile ========== */
+            @media (max-width: 768px) {
+                .navbar-menu { display: none; }
+                /* 移动端显示主题切换按钮，与 PC 端一致 */
+                .nav-theme-toggle { display: flex; }
+                .navbar-toggle { display: flex; }
+                .navbar-inner { padding: 0 16px; gap: 8px; }
+                .navbar-brand { font-size: 14px; }
+                .container { padding-top: calc(var(--navbar-height) + 32px); }
+                /* 移动端骨架屏位置同步调整 */
+                .skeleton-container { top: calc(var(--navbar-height) + 32px); }
+                .skeleton-music { margin: 20px 0 32px; }
+            }
+            @media (min-width: 769px) {
+                .navbar-menu { display: flex; }
+                .nav-theme-toggle { display: flex; }
+                .navbar-toggle { display: none; }
+            }
+
+            /* ========== Theme Dropdown (Critical - 防止 CSS 加载延迟闪烁) ========== */
+            .theme-dropdown {
+                position: fixed;
+                top: calc(var(--navbar-height) + 8px);
+                right: 24px;
+                z-index: var(--z-dropdown);
+                min-width: 200px;
+                max-width: 280px;
+                background: var(--bg-primary);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md, 12px);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(-8px);
+                transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+            }
+            .theme-dropdown.is-active {
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+            }
+            .theme-section {
+                padding: 4px 0;
+            }
+            .theme-section-label {
+                padding: 6px 12px 2px;
+                font-size: 10px;
+                font-weight: 600;
+                color: var(--text-secondary);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .theme-mode-list {
+                display: flex;
+                flex-direction: column;
+            }
+            .theme-mode-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 12px;
+                background: none;
+                border: none;
+                color: var(--text-primary);
+                cursor: pointer;
+                font-size: 12px;
+                text-align: left;
+                width: 100%;
+                transition: background 0.15s ease;
+            }
+            .theme-mode-item:hover { background: var(--hover-bg); }
+            .theme-mode-item.is-active { color: var(--accent); background: var(--active-bg); }
+            .theme-mode-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+            .theme-mode-item i {
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+                background: var(--bg-secondary);
+                font-size: 12px;
+            }
+            .theme-divider {
+                height: 1px;
+                background: var(--border);
+                margin: 2px 0;
+            }
+            .theme-scheme-list {
+                padding: 0;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            .theme-scheme-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 12px;
+                cursor: pointer;
+                transition: background 0.15s ease;
+                font-size: 12px;
+            }
+            .theme-scheme-item:hover { background: var(--hover-bg); }
+            .theme-scheme-item.is-active { background: var(--active-bg); }
+            .theme-scheme-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+            .theme-scheme-item-icon {
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background: var(--scheme-bg-primary, var(--bg-secondary));
+                border: 1px solid var(--scheme-border, var(--border));
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                box-sizing: border-box;
+                transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+            }
+            .theme-scheme-item-icon::after {
+                content: '';
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background: var(--scheme-accent, var(--accent));
+            }
+            .theme-scheme-item:hover .theme-scheme-item-icon { transform: scale(1.1); }
+            .theme-scheme-item.is-active .theme-scheme-item-icon {
+                border-color: var(--scheme-accent, var(--accent));
+                box-shadow: 0 0 10px var(--scheme-accent, var(--accent));
+            }
+        </style>
+
+        <!-- Main Stylesheet: async load via preload -->
+        <link rel="preload" href="style.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+        <noscript><link rel="stylesheet" href="style.css"></noscript>
+
+        <!-- JS Files: defer for non-blocking parallel download, ordered execution -->
+        <!-- MediaManager 必须在 app.js 之前加载 -->
+        <script src="media-manager.js" defer></script>
+        <script src="config.js" defer></script>
+        <script src="theme-utils.js" defer></script>
+
+        <!-- Analytics Scripts (由 build.js 从 config.js 注入) -->
+        {{ANALYTICS}}
+    </head>
+    <body>
+        <!-- Skip Link - 键盘用户快速跳转到主内容 -->
+        <a href="#actual-content" class="skip-link">跳到主要内容</a>
+
+        {{> navbar}}
+
+        <!-- Main content -->
+        <div class="container">
+            <!-- Skeleton Screen -->
+            <div class="profile skeleton-container" id="skeleton-screen" role="status" aria-label="Loading content" aria-live="polite">
+                <span class="sr-only">正在加载页面内容，请稍候...</span>
+                <div class="skeleton-avatar skeleton"></div>
+                <div class="skeleton-name skeleton"></div>
+                <div class="skeleton-tagline skeleton"></div>
+                {{SKELETON_MUSIC}}
+                <div class="skeleton-terminal skeleton"></div>
+                {{SKELETON_RSS}}
+                {{SKELETON_PROJECTS}}
+                {{SKELETON_LINKS_SECTION}}
+                {{SKELETON_DONATION}}
+                {{SKELETON_NOTICE}}
+                <div class="skeleton-divider skeleton"></div>
+                <div class="skeleton-footer skeleton"></div>
+            </div>
+
+            <!-- Actual Content (hidden initially via class for FOUC prevention) -->
+            <div class="profile content-initial-hidden" id="actual-content" aria-busy="true">
+                <!-- Avatar - 首屏关键内容，不使用 lazy-load -->
+                <div class="avatar-wrapper">
+                    <div class="avatar image-placeholder" id="avatar-placeholder">
+                        <img id="avatar-img" src="{{AVATAR}}" alt="{{NAME}} Avatar" width="140" height="140" data-blur />
+                    </div>
+                    <div class="status"></div>
+                </div>
+
+                <!-- Name - 首屏关键内容 -->
+                <h1 class="name" id="profile-name">{{NAME}}</h1>
+
+                <!-- Tagline - 首屏关键内容 -->
+                <p class="tagline" id="profile-tagline">
+                    <span class="paw-icon">{{TAGLINE_PREFIX}}</span>
+                    <span class="highlight">{{TAGLINE_HIGHLIGHT}}</span>{{MUSIC_TOGGLE_ICON}}
+                </p>
+
+                <!-- Music Player or Divider -->
+                {{MUSIC_PLAYER}}
+
+                <!-- Terminal -->
+                <div class="terminal lazy-load" id="terminal" data-delay="2">
+                    <div class="terminal-header">
+                        <div class="traffic-lights" aria-hidden="true">
+                            <span class="close"></span>
+                            <span class="minimize"></span>
+                            <span class="maximize"></span>
+                        </div>
+                        <div class="title" id="terminal-title">{{TERMINAL_TITLE}}</div>
+                    </div>
+                    <div class="terminal-content" id="terminal-content">
+                        <div class="prompt-line">
+                            <span class="prompt">$ </span>
+                            <span class="command">whoami</span>
+                        </div>
+                        <div class="output">{{IDENTITY}}</div>
+                        <div class="prompt-line" style="margin-top: 8px;">
+                            <span class="prompt">$ </span>
+                            <span class="command">cat interests.txt</span>
+                        </div>
+                        <div class="output">{{INTERESTS}}</div>
+                        {{GEAR_SECTION}}
+                        <div class="prompt-line" style="margin-top: 8px;">
+                            <span class="prompt">$ </span>
+                            <span class="command">./wisdom.sh</span>
+                        </div>
+                        <div class="output" id="quote-output" aria-live="polite" aria-label="Quotes"><span class="cursor-blink" aria-hidden="true"></span></div>
+                    </div>
+                </div>
+
+                <!-- RSS Articles -->
+                {{RSS}}
+
+                <!-- Projects -->
+                {{PROJECTS}}
+
+                {{LINKS_SECTION}}
+
+                {{DONATION}}
+
+                {{NOTICE}}
+
+                {{> footer}}
+            </div>
+        </div>
+
+        <!-- Donation Modal (静态存在，避免 JS 动态创建时闪烁) -->
+        {{DONATION_MODAL}}
+
+        <!-- Main Application Script: defer for non-blocking -->
+        <script src="app.js" defer></script>
+    </body>
+</html>

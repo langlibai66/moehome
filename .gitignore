@@ -1,0 +1,24 @@
+# 依赖
+node_modules/
+
+# 构建输出
+dist/
+
+# 文档
+docs/
+
+# 系统文件
+.DS_Store
+*.log
+
+# 工具缓存
+.playwright-mcp/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code
+CLAUDE.md
