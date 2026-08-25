@@ -51,9 +51,9 @@ window.HOMEPAGE_CONFIG = {
         }
     },
     theme: {
-        default: "dark",
+        default: "light",
         defaultScheme: {
-            light: null,
+            light: "nordSnowStorm",
             dark: "catppuccinMocha"
         }
     },

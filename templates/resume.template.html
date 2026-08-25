@@ -284,11 +284,8 @@
                 <h1 class="resume-name">{{NAME}}</h1>
                 <p class="resume-title">{{TITLE}} · {{SCHOOL}}</p>
                 <div class="resume-chips">
-                    <a class="chip" href="tel:{{PHONE}}"><i class="fa-solid fa-phone"></i>{{PHONE}}</a>
-                    <a class="chip" id="resume-email" href="javascript:void(0)" data-email-encoded="{{EMAIL_ENCODED}}" onclick="window.__copyEmail(this)"><i class="fa-solid fa-envelope"></i>{{EMAIL}}</a>
-                    <a class="chip" href="https://{{WEBSITE}}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe"></i>{{WEBSITE}}</a>
+                    {{CONTACTS_HTML}}
                     <span class="chip"><i class="fa-solid fa-brain"></i>{{MBTI}}</span>
-                    <a class="chip" href="{{GITHUB}}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github"></i>GitHub</a>
                 </div>
             </div>
         </section>
@@ -335,7 +332,6 @@
         <div class="theme-section">
             <div class="theme-section-label">主题模式</div>
             <div class="theme-mode-list" id="theme-mode-list" role="listbox">
-                <button class="theme-mode-item" data-mode="auto" role="option" tabindex="0"><i class="fa-solid fa-desktop"></i><span>跟随系统</span></button>
                 <button class="theme-mode-item" data-mode="light" role="option" tabindex="0"><i class="fa-solid fa-sun"></i><span>浅色</span></button>
                 <button class="theme-mode-item" data-mode="dark" role="option" tabindex="0"><i class="fa-solid fa-moon"></i><span>暗色</span></button>
             </div>
@@ -350,20 +346,122 @@
     <!-- 邮箱复制 toast + 主题脚本 -->
     <script src="/config.js" defer></script>
     <script src="/theme-utils.js" defer></script>
+    <style>
+        /* 邮箱复制 toast（复用首页样式） */
+        .email-toast {
+            position: fixed; bottom: 32px; left: 50%;
+            transform: translateX(-50%) translateY(8px);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            box-shadow: 0 8px 32px rgba(0,0,0,.25);
+            font-size: 13px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s, transform .2s;
+            z-index: 999;
+        }
+        .email-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
     <script>
-    // 主题切换（复用首页行为）
+    /* === 邮箱点击复制 === */
+    window.__copyEmail = function (el) {
+        try {
+            var enc = el.getAttribute('data-email-encoded');
+            var email = atob(enc).split('').reverse().join('');
+            var done = function () { window.__showEmailToast('已复制邮箱：' + email); };
+            var fail = function () { window.__showEmailToast('复制失败，邮箱：' + email); };
+            var fallback = function () {
+                var ta = document.createElement('textarea');
+                ta.value = email; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); done(); } catch (e) { fail(); }
+                document.body.removeChild(ta);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(email).then(done, fallback);
+            } else { fallback(); }
+        } catch (e) { window.__showEmailToast('邮箱复制出错'); }
+    };
+    window.__showEmailToast = function (msg) {
+        var t = document.getElementById('email-toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'email-toast';
+            t.className = 'email-toast';
+            document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(window.__emailToastTimer);
+        window.__emailToastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+    };
+
+    /* === 主题切换下拉（自包含的轻量实现，不依赖首页 app.js） === */
     document.addEventListener('DOMContentLoaded', function () {
-        var t = document.getElementById('nav-theme-toggle');
-        var dd = document.getElementById('theme-dropdown');
-        if (t && dd) {
-            t.addEventListener('click', function (e) {
-                e.stopPropagation();
-                dd.classList.toggle('is-active');
-                if (window.THEME_HELPERS && typeof window.THEME_HELPERS.populateSchemeList === 'function') {
-                    // 简化：触发一次方案列表渲染
-                }
+        var toggle = document.getElementById('nav-theme-toggle');
+        var dropdown = document.getElementById('theme-dropdown');
+        var modeList = document.getElementById('theme-mode-list');
+        var schemeList = document.getElementById('theme-scheme-list');
+        var tm = window.ThemeManager;
+
+        function paintMode() {
+            if (!tm || !modeList) return;
+            var cur = tm.getSavedTheme();
+            modeList.querySelectorAll('.theme-mode-item').forEach(function (it) {
+                it.classList.toggle('is-active', it.dataset.mode === cur);
             });
-            document.addEventListener('click', function () { dd.classList.remove('is-active'); });
+        }
+        function paintScheme() {
+            if (!tm || !schemeList) return;
+            var mode = tm.getEffectiveMode();
+            var cur = tm.getActiveScheme(mode);
+            var avail = tm.getAvailableSchemes(mode);
+            var def = tm.defaultScheme && tm.defaultScheme[mode];
+            schemeList.innerHTML = '';
+            avail.forEach(function (s) {
+                var item = document.createElement('button');
+                item.className = 'theme-scheme-item';
+                item.setAttribute('role', 'option');
+                if (cur && cur.id === s.id) item.classList.add('is-active');
+                if (def === s.id) item.classList.add('is-default');
+                var dot = document.createElement('span');
+                dot.className = 'theme-scheme-item-icon';
+                if (s.colors && s.colors.bgPrimary) dot.style.setProperty('--scheme-bg-primary', s.colors.bgPrimary);
+                if (s.colors && s.colors.accent) dot.style.setProperty('--scheme-accent', s.colors.accent);
+                var name = document.createElement('span');
+                name.className = 'theme-scheme-item-name';
+                name.textContent = s.name;
+                item.appendChild(dot); item.appendChild(name);
+                item.addEventListener('click', function () { tm.setScheme(s.id, mode); paintScheme(); });
+                schemeList.appendChild(item);
+            });
+        }
+        function updateDropdown() { paintMode(); paintScheme(); }
+
+        if (toggle && dropdown) {
+            toggle.addEventListener('click', function (e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('is-active');
+                if (dropdown.classList.contains('is-active')) updateDropdown();
+            });
+            document.addEventListener('click', function () { dropdown.classList.remove('is-active'); });
+        }
+        if (tm && modeList) {
+            modeList.querySelectorAll('.theme-mode-item').forEach(function (it) {
+                it.addEventListener('click', function () {
+                    tm.setSavedTheme(it.dataset.mode);
+                    updateDropdown();
+                });
+            });
+            document.addEventListener('themechange', updateDropdown);
+            // 初始化一次（ThemeManager 自加载时已应用主题，这里只更新 UI）
+            setTimeout(updateDropdown, 0);
         }
     });
     </script>

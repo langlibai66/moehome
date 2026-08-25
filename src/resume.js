@@ -8,12 +8,22 @@ window.RESUME_CONFIG = {
             title: "人工智能 · 本科在读",
             school: "太原理工大学",
             avatar: "images/resume-portrait.jpg",
-            phone: "18649365295",
-            email: "aiyangcx@gmail.cn",
-            mbti: "ENTJ-A",
-            website: "aaaieee.cn",
-            github: "https://github.com/langlibai66"
+            mbti: "ENTJ-A"
         },
+        contacts: [
+            {
+                type: "phone",
+                value: "18649365295"
+            },
+            {
+                type: "email",
+                value: "aiyangcx@gmail.cn"
+            },
+            {
+                type: "github",
+                value: "https://github.com/langlibai66"
+            }
+        ],
         education: [
             {
                 school: "太原理工大学",

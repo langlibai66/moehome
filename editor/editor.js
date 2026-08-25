@@ -356,6 +356,10 @@ function createCard(def) {
         bodyHTML += addButtonHTML(def.addButton);
     }
 
+    // 卡片头部小加号：折叠时也可点，给第一个 section 添加条目
+    const firstSection = def.sections && def.sections[0];
+    const inlineAdd = firstSection ? `<button class="card-quick-add" data-quick-add="${firstSection.itemsKey}" title="快速添加一条"><i class="fa-solid fa-plus"></i></button>` : '';
+
     el.innerHTML = `
         <div class="card-header" data-toggle="${def.id}">
             <div class="card-header-left">
@@ -365,14 +369,32 @@ function createCard(def) {
                 <span class="card-title">${def.title}</span>
                 ${badge ? `<span class="card-badge">${badge}</span>` : ''}
             </div>
-            <i class="fa-solid fa-chevron-down card-toggle"></i>
+            <div class="card-header-right">
+                ${inlineAdd}
+                <i class="fa-solid fa-chevron-down card-toggle"></i>
+            </div>
         </div>
         <div class="card-body">${bodyHTML}${def.hint ? `<p class="card-hint">${esc(def.hint)}</p>` : ''}</div>
     `;
 
-    el.querySelector('.card-header').addEventListener('click', () => {
+    el.querySelector('.card-header').addEventListener('click', (e) => {
+        // 小加号点击不应触发折叠
+        if (e.target.closest('.card-quick-add')) return;
         el.classList.toggle('collapsed');
     });
+
+    // 卡片头部小加号：点 add 直接给第一个 section 添加条目
+    const quickBtn = el.querySelector('.card-quick-add');
+    if (quickBtn) {
+        quickBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const key = quickBtn.dataset.quickAdd;
+            if (!cfg[key]) cfg[key] = [];
+            cfg[key].push('');
+            renderCards();
+            debouncedSave();
+        });
+    }
 
     bindCardEvents(el);
     return el;

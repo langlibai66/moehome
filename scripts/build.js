@@ -3012,7 +3012,30 @@ async function build() {
         if (resumeCfg) {
             let htmlResume = renderPartials(fs.readFileSync(templateResumePath, 'utf8'));
             const b = resumeCfg.basics || {};
-            const emailEncoded = encodeEmail(b.email || '');
+            // 联系方式 → chips 渲染（每个 contact 单独一条，可加可删）
+            const contactIcons = {
+                phone: 'fa-solid fa-phone',
+                email: 'fa-solid fa-envelope',
+                website: 'fa-solid fa-globe',
+                github: 'fa-brands fa-github',
+                wechat: 'fa-brands fa-weixin',
+                linkedin: 'fa-brands fa-linkedin',
+                twitter: 'fa-brands fa-twitter',
+                bilibili: 'fa-brands fa-bilibili',
+                blog: 'fa-solid fa-pen-nib',
+                other: 'fa-solid fa-link',
+            };
+            const labelOf = { phone: v => v, email: v => v, website: v => v.replace(/^https?:\/\//, ''), github: () => 'GitHub', wechat: v => v, linkedin: () => 'LinkedIn', twitter: () => 'Twitter', bilibili: () => 'Bilibili', blog: v => v.replace(/^https?:\/\//, ''), other: v => v };
+            const contactsHTML = (resumeCfg.contacts || []).map(c => {
+                const t = (c.type || 'other');
+                const v = c.value || '';
+                const icon = contactIcons[t] || contactIcons.other;
+                const label = labelOf[t] ? labelOf[t](v) : v;
+                if (t === 'phone') return `<a class="chip" href="tel:${escapeHTML(v)}"><i class="${icon}"></i>${escapeHTML(label)}</a>`;
+                if (t === 'email') return `<a class="chip" id="resume-email" href="javascript:void(0)" data-email-encoded="${encodeEmail(v)}" onclick="window.__copyEmail(this)"><i class="${icon}"></i>${escapeHTML(label)}</a>`;
+                if (t === 'github' || t === 'linkedin' || t === 'twitter' || t === 'bilibili') return `<a class="chip" href="${escapeHTML(v)}" target="_blank" rel="noopener noreferrer"><i class="${icon}"></i>${escapeHTML(label)}</a>`;
+                return `<a class="chip" href="${escapeHTML(v)}" target="_blank" rel="noopener noreferrer"><i class="${icon}"></i>${escapeHTML(label)}</a>`;
+            }).join('\n                    ');
             htmlResume = htmlResume
                 .replace(/{{FAVICON_LINKS}}/g, generateFaviconLinks(''))
                 .replace(/{{THEME_INIT_SCRIPT}}/g, generateThemeInitScript())
@@ -3021,12 +3044,8 @@ async function build() {
                 .replace(/\{\{TITLE\}\}/g, escapeHTML(b.title || ''))
                 .replace(/\{\{SCHOOL\}\}/g, escapeHTML(b.school || ''))
                 .replace(/\{\{AVATAR\}\}/g, b.avatar || '')
-                .replace(/\{\{PHONE\}\}/g, escapeHTML(b.phone || ''))
-                .replace(/\{\{EMAIL\}\}/g, escapeHTML(b.email || ''))
-                .replace(/\{\{EMAIL_ENCODED\}\}/g, emailEncoded)
                 .replace(/\{\{MBTI\}\}/g, escapeHTML(b.mbti || ''))
-                .replace(/\{\{WEBSITE\}\}/g, escapeHTML(b.website || ''))
-                .replace(/\{\{GITHUB\}\}/g, escapeHTML(b.github || ''))
+                .replace(/\{\{CONTACTS_HTML\}\}/g, contactsHTML)
                 .replace(/\{\{EDUCATION_HTML\}\}/g, (resumeCfg.education || []).map(edu => `
                     <div class="item">
                         <div class="item-head">

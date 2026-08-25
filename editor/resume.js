@@ -90,12 +90,26 @@ const RESUME_CARD_DEFS = [
             { label: '标题', key: 'basics.title', type: 'text', placeholder: '如：人工智能 · 本科在读' },
             { label: '学校', key: 'basics.school', type: 'text' },
             { label: '头像路径', key: 'basics.avatar', type: 'text', placeholder: 'images/resume-portrait.jpg' },
-            { label: '电话', key: 'basics.phone', type: 'text' },
-            { label: '邮箱', key: 'basics.email', type: 'text' },
             { label: 'MBTI', key: 'basics.mbti', type: 'text' },
-            { label: '个人网站', key: 'basics.website', type: 'text' },
-            { label: 'GitHub', key: 'basics.github', type: 'text' },
-        ]
+        ],
+        sections: [{
+            label: '联系方式', itemsKey: 'contacts', addLabel: '一条',
+            fields: [
+                { key: 'type', label: '类型', type: 'select', options: [
+                    { v: 'phone', l: '电话' },
+                    { v: 'email', l: '邮箱' },
+                    { v: 'website', l: '个人网站' },
+                    { v: 'github', l: 'GitHub' },
+                    { v: 'wechat', l: '微信' },
+                    { v: 'linkedin', l: 'LinkedIn' },
+                    { v: 'twitter', l: 'Twitter' },
+                    { v: 'bilibili', l: 'Bilibili' },
+                    { v: 'blog', l: '博客' },
+                    { v: 'other', l: '其他' },
+                ] },
+                { key: 'value', label: '值', type: 'text' },
+            ]
+        }]
     },
     {
         id: 'education', icon: 'fa-graduation-cap', color: '#b066ff',
@@ -222,6 +236,11 @@ function objectListSectionHTML(sec) {
             } else if (f.type === 'list') {
                 const arr = Array.isArray(v) ? v : [];
                 inputHTML = `<textarea data-obj-list="${dataPath}" rows="4" placeholder="${esc(f.placeholder || '每行一项')}">${esc(arr.join('\n'))}</textarea>`;
+            } else if (f.type === 'select') {
+                const opts = (f.options || []).map(o =>
+                    `<option value="${esc(o.v)}" ${o.v === v ? 'selected' : ''}>${esc(o.l)}</option>`
+                ).join('');
+                inputHTML = `<select data-obj="${dataPath}"><option value="">-- 选择 --</option>${opts}</select>`;
             } else {
                 inputHTML = `<input type="text" data-obj="${dataPath}" value="${esc(String(v != null ? v : ''))}" placeholder="${esc(f.placeholder || '')}">`;
             }
@@ -271,6 +290,9 @@ function createCard(def) {
     if (def.sections) {
         for (const sec of def.sections) cardBody += objectListSectionHTML(sec);
     }
+    // 卡片头部小加号：折叠时也可点，给第一个 section 添加条目
+    const firstSection = def.sections && def.sections[0];
+    const inlineAdd = firstSection ? `<button class="card-quick-add" data-quick-add="${firstSection.itemsKey}" title="快速添加"><i class="fa-solid fa-plus"></i></button>` : '';
     el.innerHTML = `
         <div class="card-header">
             <div class="card-header-left">
@@ -278,10 +300,29 @@ function createCard(def) {
                 <span class="card-title">${esc(def.title)}</span>
                 ${badge ? `<span class="card-badge">${badge}</span>` : ''}
             </div>
-            <i class="fa-solid fa-chevron-down card-toggle"></i>
+            <div class="card-header-right">
+                ${inlineAdd}
+                <i class="fa-solid fa-chevron-down card-toggle"></i>
+            </div>
         </div>
         <div class="card-body">${cardBody}</div>`;
-    el.querySelector('.card-header').addEventListener('click', () => el.classList.toggle('collapsed'));
+    el.querySelector('.card-header').addEventListener('click', (e) => {
+        // 防止小加号触发卡片折叠
+        if (e.target.closest('.card-quick-add')) return;
+        el.classList.toggle('collapsed');
+    });
+    // 卡片头部小加号：点 add 直接加
+    const quickBtn = el.querySelector('.card-quick-add');
+    if (quickBtn) {
+        quickBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const key = quickBtn.dataset.quickAdd;
+            if (!cfg[key]) cfg[key] = [];
+            cfg[key].push({});
+            renderCards();
+            debouncedSave();
+        });
+    }
     bindCardEvents(el);
     return el;
 }
@@ -294,8 +335,9 @@ function bindCardEvents(cardEl) {
         el.addEventListener('input', () => setVal(el.dataset.key, el.value));
     });
 
-    cardEl.querySelectorAll('input[data-obj], textarea[data-obj]').forEach(el => {
-        el.addEventListener('input', () => {
+    cardEl.querySelectorAll('input[data-obj], textarea[data-obj], select[data-obj]').forEach(el => {
+        const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+        el.addEventListener(evt, () => {
             const [itemsKey, fieldKey, idx] = el.dataset.obj.split('.');
             const i = parseInt(idx);
             if (!cfg[itemsKey]) cfg[itemsKey] = [];

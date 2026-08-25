@@ -152,6 +152,31 @@ html, body {
     gap: 8px;
     min-width: 0;
 }
+.card-header-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.card-quick-add {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-radius: 50%;
+    font-size: 10px;
+    cursor: pointer;
+    transition: transform .15s, background .15s;
+}
+.card-quick-add:hover {
+    background: var(--accent);
+    color: #fff;
+    transform: rotate(90deg);
+}
 .card-icon {
     width: 28px; height: 28px;
     border-radius: var(--radius-sm);
