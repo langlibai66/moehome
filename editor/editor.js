@@ -1,191 +1,64 @@
 /**
- * MoeWah Editor — Visual Configuration Editor v2
- * 直接操作配置对象 + 完整变更链路
+ * MoeWah Editor — Visual Configuration Editor v3
+ * Uses parseFullConfig (brace matching + safe eval) — no regex
  */
 
 // ============================================================
-// CONFIG PARSER — 将 config.js 解析为结构化对象
+// FULL CONFIG PARSER — parse the entire HOMEPAGE_CONFIG object
 // ============================================================
-function parseConfig(raw) {
-    const c = raw;
-
-    function grab(pattern, fallback) {
-        const m = c.match(pattern);
-        return m && m[1] !== undefined ? m[1] : fallback;
-    }
-
-    function grabArr(pattern) {
-        const m = c.match(pattern);
-        if (!m) return [];
-        const items = [];
-        const re = /['"`]([^'"`]+)['"`]/g;
-        let x;
-        while ((x = re.exec(m[1]))) items.push(x[1]);
-        return items;
-    }
-
-    function grabLinks() {
-        const m = c.match(/links:\s*\[([\s\S]*?)\n\s*\]/);
-        if (!m) return [];
-        const links = [];
-        const re = /\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g;
-        let x;
-        while ((x = re.exec(m[1]))) {
-            const o = x[1];
-            const name = val(o, 'name');
-            const url = val(o, 'url');
-            if (!name || !url) continue;
-            links.push({
-                name, description: val(o, 'description') || '',
-                url, icon: val(o, 'icon') || 'fa-solid fa-link',
-                brand: val(o, 'brand') || 'link',
-                color: val(o, 'color') || '#00ff9f',
-                external: bool(o, 'external'),
-                enabled: bool(o, 'enabled', true),
-                antiCrawler: bool(o, 'antiCrawler', true),
-            });
-        }
-        return links;
-    }
-
-    function val(o, k) {
-        const ps = [
-            new RegExp(k + ':\\s*"((?:[^"\\\\]|\\\\.)*)"'),
-            new RegExp(k + ":\\s*'((?:[^'\\\\]|\\\\.)*)'"),
-            new RegExp(k + ':\\s*`((?:[^`\\\\]|\\\\.)*)`'),
-        ];
-        for (const p of ps) { const m = o.match(p); if (m) return m[1].replace(/\\(['"`\\])/g, '$1'); }
-        return '';
-    }
-
-    function bool(o, k, def) {
-        const m = o.match(new RegExp(k + ':\\s*(true|false)'));
-        return m ? m[1] === 'true' : !!def;
-    }
-
-    return {
-        site: {
-            name: grab(/name:\s*['"`]([^'"`]+)['"`]/),
-            tagline: grab(/tagline:\s*['"`]([^'"`]+)['"`]/),
-            url: grab(/url:\s*['"`]([^'"`]+)['"`]/),
-        },
-        profile: {
-            name: grab(/profile:[\s\S]*?name:\s*['"`]([^'"`]+)['"`]/),
-            taglinePrefix: grab(/tagline:\s*\{[\s\S]*?prefix:\s*['"`]([^'"`]+)['"`]/),
-            taglineHighlight: grab(/tagline:\s*\{[\s\S]*?highlight:\s*['"`]([^'"`]+)['"`]/),
-        },
-        identity: grabArr(/identity:\s*\[([\s\S]*?)\n\s*\]/),
-        interests: grabArr(/interests:\s*\[([\s\S]*?)\n\s*\]/),
-        terminal: {
-            title: grab(/terminal:[\s\S]*?title:\s*['"`]([^'"`]+)['"`]/),
-        },
-        quotes: grabArr(/quotes:\s*\[([\s\S]*?)\n\s*\]/),
-        theme: {
-            default: grab(/theme:[\s\S]*?default:\s*['"`](light|dark|auto)['"`]/),
-            lightScheme: grab(/theme:[\s\S]*?light:\s*['"`]([^'"`]+)['"`]/),
-            darkScheme: grab(/theme:[\s\S]*?dark:\s*['"`]([^'"`]+)['"`]/),
-        },
-        projects: {
-            enabled: bool(c.match(/projects:[\s\S]*?\}/)?.[1] || '', 'enabled'),
-            titleText: grab(/projects:[\s\S]*?text:\s*['"`]([^'"`]+)['"`]/),
-            githubUser: grab(/projects:[\s\S]*?githubUser:\s*['"`]([^'"`]+)['"`]/),
-            count: parseInt(grab(/projects:[\s\S]*?count:\s*(\d+)/)) || 6,
-        },
-        contribution: {
-            enabled: bool(c.match(/contribution:\s*\{[\s\S]*?\}/)?.[1] || '', 'enabled'),
-            useRealData: bool(c.match(/contribution:\s*\{[\s\S]*?\}/)?.[1] || '', 'useRealData'),
-        },
-        rss: {
-            enabled: bool(c.match(/rss:[\s\S]*?\},\s*\n\s*\/\//)?.[1] || '', 'enabled'),
-            url: grab(/rss:[\s\S]*?url:\s*['"`]([^'"`]+)['"`]/),
-        },
-        linksConfig: {
-            enabled: bool(c.match(/linksConfig:[\s\S]*?\}/)?.[1] || '', 'enabled'),
-            titleText: grab(/linksConfig:[\s\S]*?text:\s*['"`]([^'"`]+)['"`]/),
-        },
-        links: grabLinks(),
-        notice: {
-            enabled: bool(c.match(/notice:[\s\S]*?\}/)?.[1] || '', 'enabled'),
-            text: grab(/notice:[\s\S]*?text:\s*['"`]([^'"`]+)['"`]/),
-        },
-        footer: {
-            copyrightYear: grab(/footer:[\s\S]*?year:\s*['"`]([^'"`]+)['"`]/),
-            copyrightName: grab(/footer:[\s\S]*?name:\s*['"`]([^'"`]+)['"`]/),
-        },
-        analytics: {
-            gaEnabled: bool(c.match(/analytics:[\s\S]*?googleAnalytics:\s*\{[\s\S]*?\}/)?.[1] || '', 'enabled'),
-            gaId: grab(/id:\s*['"`](G-[^'"`]+)['"`]/),
-        },
-    };
-}
-
-// ============================================================
-// STATE
-// ============================================================
-let rawConfig = '';
-let cfg = {};
-let saveTimer = null;
-
-const $ = id => document.getElementById(id);
-
-// ============================================================
-// CONFIG WRITER — 解析 → 合并 → 序列化（不用正则替换）
-// ============================================================
-function buildConfigSource() {
-    // 1. 从原始内容解析出完整的配置对象
-    const original = parseFullConfig(rawConfig);
-
-    // 2. 用编辑器中的 cfg 覆盖原始值
-    mergeConfig(original, cfg);
-
-    // 3. 序列化回 JS 代码
-    return serializeConfig(original);
-}
-
-/**
- * 提取 HOMEPAGE_CONFIG 对象内容并安全解析为 JS 对象
- */
 function parseFullConfig(raw) {
-    // 找到 window.HOMEPAGE_CONFIG = {...} 的 { 和对应的 }
-    const startMarker = 'window.HOMEPAGE_CONFIG = ';
-    const startIdx = raw.indexOf(startMarker);
-    if (startIdx === -1) return {};
-
-    const braceStart = raw.indexOf('{', startIdx);
+    const marker = 'window.HOMEPAGE_CONFIG = ';
+    const idx = raw.indexOf(marker);
+    if (idx === -1) return {};
+    const braceStart = raw.indexOf('{', idx);
     if (braceStart === -1) return {};
 
-    // 用括号匹配找到闭合 }
-    let depth = 0;
-    let endIdx = -1;
+    // String-aware brace matching
+    let depth = 0, endIdx = -1;
+    let inStr = false, strCh = '';
     for (let i = braceStart; i < raw.length; i++) {
-        if (raw[i] === '{') depth++;
-        else if (raw[i] === '}') {
-            depth--;
-            if (depth === 0) { endIdx = i; break; }
+        const ch = raw[i];
+        if (!inStr) {
+            if (ch === '"' || ch === "'" || ch === '`') {
+                inStr = true;
+                strCh = ch;
+            } else if (ch === '{') {
+                depth++;
+            } else if (ch === '}') {
+                depth--;
+                if (depth === 0) { endIdx = i; break; }
+            }
+        } else {
+            if (ch === strCh && raw[i - 1] !== '\\') {
+                inStr = false;
+                strCh = '';
+            }
         }
     }
     if (endIdx === -1) return {};
 
-    const objStr = raw.substring(braceStart, endIdx + 1);
-    // 安全执行对象字面量
     try {
-        return new Function('return ' + objStr)();
+        return new Function('return ' + raw.substring(braceStart, endIdx + 1))();
     } catch (e) {
-        console.error('Parse config error:', e);
+        console.error('Config parse error:', e.message);
         return {};
     }
 }
 
-/**
- * 将编辑器中的 cfg 合并到原始配置对象中
- * 只覆盖编辑器中有修改的字段
- */
-function mergeConfig(target, source, prefix = '') {
+// ============================================================
+// CONFIG WRITER — parse → merge → serialize (no regex replace)
+// ============================================================
+function buildConfigSource() {
+    const original = parseFullConfig(rawConfig);
+    mergeConfig(original, cfg);
+    return serializeConfig(original);
+}
+
+function mergeConfig(target, source) {
     for (const [key, value] of Object.entries(source)) {
-        const path = prefix ? prefix + '.' + key : key;
-        if (value && typeof value === 'object' && !Array.isArray(value) && typeof value !== 'function') {
-            if (!target[key]) target[key] = Array.isArray(value) ? [] : {};
-            mergeConfig(target[key], value, path);
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            if (!target[key] || typeof target[key] !== 'object') target[key] = {};
+            mergeConfig(target[key], value);
         } else if (Array.isArray(value)) {
             target[key] = [...value];
         } else if (value !== undefined && value !== null && value !== '') {
@@ -194,9 +67,6 @@ function mergeConfig(target, source, prefix = '') {
     }
 }
 
-/**
- * 将配置对象序列化为格式化的 JS 代码
- */
 function serializeConfig(obj) {
     const lines = [];
     lines.push('/**');
@@ -206,6 +76,8 @@ function serializeConfig(obj) {
     lines.push('');
     lines.push('window.HOMEPAGE_CONFIG = ' + serializeValue(obj, 1) + ';');
     lines.push('');
+    lines.push('function formatIdentity() { return window.HOMEPAGE_CONFIG.identity.join(" / "); }');
+    lines.push('function formatInterests() { return window.HOMEPAGE_CONFIG.interests.join(" / "); }');
     return lines.join('\n');
 }
 
@@ -224,9 +96,9 @@ function serializeValue(val, indent) {
     if (typeof val === 'object') {
         const entries = Object.entries(val);
         if (entries.length === 0) return '{}';
-        const pairs = entries.map(([k, v]) => {
-            return '    '.repeat(indent) + k + ': ' + serializeValue(v, indent + 1);
-        });
+        const pairs = entries.map(([k, v]) =>
+            '    '.repeat(indent) + k + ': ' + serializeValue(v, indent + 1)
+        );
         return '{\n' + pairs.join(',\n') + '\n' + '    '.repeat(indent - 1) + '}';
     }
 
@@ -234,14 +106,24 @@ function serializeValue(val, indent) {
 }
 
 // ============================================================
-// INIT
+// STATE
+// ============================================================
+let rawConfig = '';
+let cfg = {};
+let saveTimer = null;
+
+const $ = id => document.getElementById(id);
+
+// ============================================================
+// INIT — load config using parseFullConfig
 // ============================================================
 async function init() {
     try {
         const res = await fetch('/api/config');
         const data = await res.json();
         rawConfig = data.content;
-        cfg = parseConfig(rawConfig);
+        const full = parseFullConfig(rawConfig);
+        cfg = buildEditorConfig(full);
         renderCards();
         showStatus('ready');
     } catch (e) {
@@ -249,103 +131,68 @@ async function init() {
     }
 }
 
-// ============================================================
-// CARD DEFINITIONS — 声明式卡片列表
-// ============================================================
-const CARD_DEFS = [
-    {
-        id: 'site', icon: 'fa-globe', color: '#4a9eff',
-        title: '站点基础', fields: [
-            { label: '站点名称', key: 'site.name', type: 'text', placeholder: '杨晨旭' },
-            { label: '站点标语', key: 'site.tagline', type: 'text', placeholder: '开发者 / 技术爱好者' },
-            { label: '站点 URL', key: 'site.url', type: 'text', placeholder: 'https://example.com' },
-        ]
-    },
-    {
-        id: 'profile', icon: 'fa-user', color: '#b066ff',
-        title: '个人资料', fields: [
-            { label: '显示名称', key: 'profile.name', type: 'text' },
-            { label: '个性签名前缀', key: 'profile.taglinePrefix', type: 'text', placeholder: '🐱' },
-            { label: '个性签名高亮', key: 'profile.taglineHighlight', type: 'text', placeholder: '欢迎来到我的主页' },
-        ]
-    },
-    {
-        id: 'identity', icon: 'fa-fingerprint', color: '#ff4d6a',
-        title: '身份标签 & 兴趣', sections: [
-            { label: '身份标签', itemsKey: 'identity' },
-            { label: '兴趣领域', itemsKey: 'interests' },
-        ]
-    },
-    {
-        id: 'terminal', icon: 'fa-terminal', color: '#27c93f',
-        title: '终端 & 语录', fields: [
-            { label: '终端标题', key: 'terminal.title', type: 'text', placeholder: '🐱 user@host:~|' },
-        ],
-        sections: [
-            { label: '名人语录', itemsKey: 'quotes' },
-        ]
-    },
-    {
-        id: 'theme', icon: 'fa-palette', color: '#ff9500',
-        title: '主题配色', fields: [
-            { label: '默认模式', key: 'theme.default', type: 'select', options: [
-                { v: 'auto', l: '跟随系统' }, { v: 'light', l: '浅色' }, { v: 'dark', l: '暗色' }
-            ]},
-            { label: '浅色配色方案', key: 'theme.lightScheme', type: 'text', placeholder: 'coralOrange' },
-            { label: '暗色配色方案', key: 'theme.darkScheme', type: 'text', placeholder: 'catppuccinMocha' },
-        ]
-    },
-    {
-        id: 'links', icon: 'fa-link', color: '#00a1ff',
-        title: '链接导航',
-        toggle: { label: '启用链接模块', key: 'linksConfig.enabled', get: () => cfg.linksConfig?.enabled ?? true },
-        extraTitle: () => `${(cfg.links || []).length} 条`,
-        sections: [
-            { label: '链接列表', itemsKey: 'links', isLinks: true },
-        ],
-        addButton: { label: '添加链接', action: 'addLink' },
-    },
-    {
-        id: 'projects', icon: 'fa-folder-open', color: '#ff9500',
-        title: 'GitHub 项目', fields: [
-            { label: '启用项目展示', key: 'projects.enabled', type: 'toggle', get: () => cfg.projects?.enabled ?? true },
-            { label: '板块标题', key: 'projects.titleText', type: 'text', placeholder: '我的项目' },
-            { label: 'GitHub 用户名', key: 'projects.githubUser', type: 'text', placeholder: 'yourusername' },
-            { label: '显示数量', key: 'projects.count', type: 'number', min: 1, max: 12 },
-        ]
-    },
-    {
-        id: 'contribution', icon: 'fa-chart-bar', color: '#9b59b6',
-        title: '贡献图', fields: [
-            { label: '启用贡献图', key: 'contribution.enabled', type: 'toggle', get: () => cfg.contribution?.enabled ?? true },
-            { label: '使用真实数据', key: 'contribution.useRealData', type: 'toggle', get: () => cfg.contribution?.useRealData ?? true },
-        ]
-    },
-    {
-        id: 'notice', icon: 'fa-shield-halved', color: '#ff3b3b',
-        title: '安全提示', fields: [
-            { label: '启用提示', key: 'notice.enabled', type: 'toggle', get: () => cfg.notice?.enabled ?? false },
-            { label: '提示内容', key: 'notice.text', type: 'text', placeholder: '输入提示内容...' },
-        ]
-    },
-    {
-        id: 'footer', icon: 'fa-shoe-prints', color: '#5c7cfa',
-        title: '页脚', fields: [
-            { label: '版权年份', key: 'footer.copyrightYear', type: 'text' },
-            { label: '版权名称', key: 'footer.copyrightName', type: 'text' },
-        ]
-    },
-    {
-        id: 'analytics', icon: 'fa-chart-line', color: '#e4a853',
-        title: '统计分析', fields: [
-            { label: 'Google Analytics', key: 'analytics.gaEnabled', type: 'toggle', get: () => cfg.analytics?.gaEnabled ?? false },
-            { label: 'GA ID', key: 'analytics.gaId', type: 'text', placeholder: 'G-XXXXXXXXXX' },
-        ]
-    },
-];
+/**
+ * Convert full HOMEPAGE_CONFIG into editor-friendly flat structure
+ */
+function buildEditorConfig(full) {
+    return {
+        site: {
+            name: full?.site?.name || '',
+            tagline: full?.site?.tagline || '',
+            url: full?.site?.url || '',
+        },
+        profile: {
+            name: full?.profile?.name || '',
+            taglinePrefix: full?.profile?.tagline?.prefix || '',
+            taglineHighlight: full?.profile?.tagline?.highlight || '',
+        },
+        identity: [...(full?.identity || [])],
+        interests: [...(full?.interests || [])],
+        terminal: {
+            title: full?.terminal?.title || '',
+        },
+        quotes: [...(full?.quotes || [])],
+        theme: {
+            default: full?.theme?.default || 'auto',
+            lightScheme: full?.theme?.defaultScheme?.light || '',
+            darkScheme: full?.theme?.defaultScheme?.dark || '',
+        },
+        projects: {
+            enabled: full?.projects?.enabled ?? true,
+            titleText: full?.projects?.title?.text || '',
+            githubUser: full?.projects?.githubUser || '',
+            count: full?.projects?.count || 6,
+        },
+        contribution: {
+            enabled: full?.contribution?.enabled ?? true,
+            useRealData: full?.contribution?.useRealData ?? true,
+        },
+        rss: {
+            enabled: full?.rss?.enabled ?? false,
+            url: full?.rss?.url || '',
+        },
+        linksConfig: {
+            enabled: full?.linksConfig?.enabled ?? true,
+            titleText: full?.linksConfig?.title?.text || '',
+        },
+        links: (full?.links || []).map(l => ({ ...l })),
+        notice: {
+            enabled: full?.notice?.enabled ?? false,
+            text: full?.notice?.text || '',
+        },
+        footer: {
+            copyrightYear: full?.footer?.copyright?.year || '',
+            copyrightName: full?.footer?.copyright?.name || '',
+        },
+        analytics: {
+            gaEnabled: full?.analytics?.googleAnalytics?.enabled ?? false,
+            gaId: full?.analytics?.googleAnalytics?.id || '',
+        },
+    };
+}
 
 // ============================================================
-// VALUE HELPERS — 从嵌套对象取值/设值
+// VALUE HELPERS
 // ============================================================
 function getVal(keyPath) {
     const parts = keyPath.split('.');
@@ -366,12 +213,115 @@ function setVal(keyPath, value) {
 }
 
 // ============================================================
+// CARD DEFINITIONS
+// ============================================================
+const CARD_DEFS = [
+    {
+        id: 'site', icon: 'fa-globe', color: '#4a9eff',
+        title: '站点基础',
+        fields: [
+            { label: '站点名称', key: 'site.name', type: 'text', placeholder: '杨晨旭' },
+            { label: '站点标语', key: 'site.tagline', type: 'text', placeholder: '开发者 / 技术爱好者' },
+            { label: '站点 URL', key: 'site.url', type: 'text', placeholder: 'https://example.com' },
+        ]
+    },
+    {
+        id: 'profile', icon: 'fa-user', color: '#b066ff',
+        title: '个人资料',
+        fields: [
+            { label: '显示名称', key: 'profile.name', type: 'text' },
+            { label: '个性签名前缀', key: 'profile.taglinePrefix', type: 'text', placeholder: '🐱' },
+            { label: '个性签名高亮', key: 'profile.taglineHighlight', type: 'text', placeholder: '欢迎来到我的主页' },
+        ]
+    },
+    {
+        id: 'identity', icon: 'fa-fingerprint', color: '#ff4d6a',
+        title: '身份标签 & 兴趣',
+        sections: [
+            { label: '身份标签', itemsKey: 'identity' },
+            { label: '兴趣领域', itemsKey: 'interests' },
+        ]
+    },
+    {
+        id: 'terminal', icon: 'fa-terminal', color: '#27c93f',
+        title: '终端 & 语录',
+        fields: [
+            { label: '终端标题', key: 'terminal.title', type: 'text', placeholder: '🐱 user@host:~|' },
+        ],
+        sections: [
+            { label: '名人语录', itemsKey: 'quotes' },
+        ]
+    },
+    {
+        id: 'theme', icon: 'fa-palette', color: '#ff9500',
+        title: '主题配色',
+        fields: [
+            { label: '默认模式', key: 'theme.default', type: 'select', options: [
+                { v: 'auto', l: '跟随系统' }, { v: 'light', l: '浅色' }, { v: 'dark', l: '暗色' }
+            ]},
+            { label: '浅色配色方案', key: 'theme.lightScheme', type: 'text', placeholder: 'coralOrange' },
+            { label: '暗色配色方案', key: 'theme.darkScheme', type: 'text', placeholder: 'catppuccinMocha' },
+        ]
+    },
+    {
+        id: 'links', icon: 'fa-link', color: '#00a1ff',
+        title: '链接导航',
+        toggle: { label: '启用链接模块', key: 'linksConfig.enabled', get: () => cfg.linksConfig?.enabled ?? true },
+        sections: [
+            { label: '链接列表', itemsKey: 'links', isLinks: true },
+        ],
+        addButton: { label: '添加链接', action: 'addLink' },
+    },
+    {
+        id: 'projects', icon: 'fa-folder-open', color: '#ff9500',
+        title: 'GitHub 项目',
+        fields: [
+            { label: '启用项目展示', key: 'projects.enabled', type: 'toggle', get: () => cfg.projects?.enabled ?? true },
+            { label: '板块标题', key: 'projects.titleText', type: 'text', placeholder: '我的项目' },
+            { label: 'GitHub 用户名', key: 'projects.githubUser', type: 'text', placeholder: 'yourusername' },
+            { label: '显示数量', key: 'projects.count', type: 'number', min: 1, max: 12 },
+        ]
+    },
+    {
+        id: 'contribution', icon: 'fa-chart-bar', color: '#9b59b6',
+        title: '贡献图',
+        fields: [
+            { label: '启用贡献图', key: 'contribution.enabled', type: 'toggle', get: () => cfg.contribution?.enabled ?? true },
+            { label: '使用真实数据', key: 'contribution.useRealData', type: 'toggle', get: () => cfg.contribution?.useRealData ?? true },
+        ]
+    },
+    {
+        id: 'notice', icon: 'fa-shield-halved', color: '#ff3b3b',
+        title: '安全提示',
+        fields: [
+            { label: '启用提示', key: 'notice.enabled', type: 'toggle', get: () => cfg.notice?.enabled ?? false },
+            { label: '提示内容', key: 'notice.text', type: 'text', placeholder: '输入提示内容...' },
+        ]
+    },
+    {
+        id: 'footer', icon: 'fa-shoe-prints', color: '#5c7cfa',
+        title: '页脚',
+        fields: [
+            { label: '版权年份', key: 'footer.copyrightYear', type: 'text' },
+            { label: '版权名称', key: 'footer.copyrightName', type: 'text' },
+        ]
+    },
+    {
+        id: 'analytics', icon: 'fa-chart-line', color: '#e4a853',
+        title: '统计分析',
+        fields: [
+            { label: 'Google Analytics', key: 'analytics.gaEnabled', type: 'toggle', get: () => cfg.analytics?.gaEnabled ?? false },
+            { label: 'GA ID', key: 'analytics.gaId', type: 'text', placeholder: 'G-XXXXXXXXXX' },
+        ]
+    },
+];
+
+// ============================================================
 // RENDER CARDS
 // ============================================================
 function renderCards() {
     const container = $('cards-container');
     container.innerHTML = '';
-
     for (const def of CARD_DEFS) {
         container.appendChild(createCard(def));
     }
@@ -382,19 +332,17 @@ function createCard(def) {
     el.className = 'config-card';
     el.dataset.id = def.id;
 
-    const badge = def.extraTitle ? def.extraTitle() :
-                  (def.sections?.some(s => s.isLinks) ? `${(cfg.links || []).length} 条` :
-                   def.id);
+    const badge = def.sections?.some(s => s.isLinks)
+        ? `${(cfg.links || []).length} 条`
+        : def.id;
 
     let bodyHTML = '';
 
-    // Toggle field (standalone)
     if (def.toggle) {
         const val = def.toggle.get ? def.toggle.get() : getVal(def.toggle.key);
         bodyHTML += toggleHTML(def.toggle.label, def.toggle.key, val);
     }
 
-    // Regular fields
     if (def.fields) {
         for (const f of def.fields) {
             if (f.type === 'toggle') {
@@ -410,14 +358,12 @@ function createCard(def) {
         }
     }
 
-    // Array sections (identity, interests, quotes, links)
     if (def.sections) {
         for (const sec of def.sections) {
-            bodyHTML += arraySectionHTML(sec, def.id);
+            bodyHTML += arraySectionHTML(sec);
         }
     }
 
-    // Add button
     if (def.addButton) {
         bodyHTML += addButtonHTML(def.addButton);
     }
@@ -436,21 +382,20 @@ function createCard(def) {
         <div class="card-body">${bodyHTML}</div>
     `;
 
-    // Bind card toggle
     el.querySelector('.card-header').addEventListener('click', () => {
         el.classList.toggle('collapsed');
     });
 
-    // Bind all input events
-    bindCardEvents(el, def);
-
+    bindCardEvents(el);
     return el;
 }
 
 // ============================================================
 // FIELD HTML BUILDERS
 // ============================================================
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 function textHTML(label, key, value, opts) {
     return `<div class="field-group">
@@ -479,22 +424,19 @@ function selectHTML(label, key, value, options) {
 function toggleHTML(label, key, value) {
     return `<div class="field-group">
         <div class="toggle-wrap">
-            <div class="toggle ${value ? 'active' : ''}" data-key="${key}" data-toggle></div>
+            <div class="toggle ${value ? 'on' : ''}" data-key="${key}" data-toggle></div>
             <span class="toggle-label">${esc(label)}</span>
         </div>
     </div>`;
 }
 
-function arraySectionHTML(sec, cardId) {
+function arraySectionHTML(sec) {
     const itemsKey = sec.itemsKey;
     const items = cfg[itemsKey] || [];
 
     let itemsHTML = '';
     if (sec.isLinks) {
-        // Special rendering for links
-        items.forEach((link, i) => {
-            itemsHTML += linkItemHTML(i, link);
-        });
+        items.forEach((link, i) => { itemsHTML += linkItemHTML(i, link); });
     } else {
         items.forEach((val, i) => {
             itemsHTML += `<div class="array-item">
@@ -533,7 +475,7 @@ function linkItemHTML(index, link) {
                 <label class="field-label">图标 (FontAwesome)</label>
                 <input type="text" data-link="${index}:icon" value="${esc(link.icon || '')}" placeholder="fa-solid fa-link">
             </div>
-            <div class="field-group" style="grid-column:1/-1">
+            <div class="field-group full-width">
                 <label class="field-label">URL</label>
                 <input type="text" data-link="${index}:url" value="${esc(link.url || '')}" placeholder="https://...">
             </div>
@@ -551,11 +493,11 @@ function linkItemHTML(index, link) {
         </div>
         <div class="link-card-toggles">
             <div class="toggle-wrap">
-                <div class="toggle ${link.enabled !== false ? 'active' : ''}" data-link-toggle="${index}:enabled"></div>
+                <div class="toggle ${link.enabled !== false ? 'on' : ''}" data-link-toggle="${index}:enabled"></div>
                 <span class="toggle-label">启用</span>
             </div>
             <div class="toggle-wrap">
-                <div class="toggle ${link.antiCrawler ? 'active' : ''}" data-link-toggle="${index}:antiCrawler"></div>
+                <div class="toggle ${link.antiCrawler ? 'on' : ''}" data-link-toggle="${index}:antiCrawler"></div>
                 <span class="toggle-label">邮箱反爬</span>
             </div>
         </div>
@@ -569,103 +511,72 @@ function addButtonHTML(opts) {
 // ============================================================
 // EVENT BINDING
 // ============================================================
-function bindCardEvents(cardEl, def) {
-    // Text / number inputs
+function bindCardEvents(cardEl) {
     cardEl.querySelectorAll('input[data-key]').forEach(input => {
-        input.addEventListener('input', () => {
-            setVal(input.dataset.key, input.value);
-        });
+        input.addEventListener('input', () => setVal(input.dataset.key, input.value));
     });
 
-    // Select
     cardEl.querySelectorAll('select[data-key]').forEach(sel => {
-        sel.addEventListener('change', () => {
-            setVal(sel.dataset.key, sel.value);
-        });
+        sel.addEventListener('change', () => setVal(sel.dataset.key, sel.value));
     });
 
-    // Toggles
     cardEl.querySelectorAll('[data-toggle]').forEach(toggle => {
         toggle.addEventListener('click', () => {
-            toggle.classList.toggle('active');
-            setVal(toggle.dataset.key, toggle.classList.contains('active'));
+            toggle.classList.toggle('on');
+            setVal(toggle.dataset.key, toggle.classList.contains('on'));
         });
     });
 
-    // Array item inputs
     cardEl.querySelectorAll('input[data-array]').forEach(input => {
         input.addEventListener('input', () => {
             const key = input.dataset.array;
             const idx = parseInt(input.dataset.idx);
-            if (cfg[key]) {
-                cfg[key][idx] = input.value;
-                debouncedSave();
-            }
+            if (cfg[key]) { cfg[key][idx] = input.value; debouncedSave(); }
         });
     });
 
-    // Array remove
     cardEl.querySelectorAll('[data-remove]').forEach(btn => {
         btn.addEventListener('click', () => {
             const [key, idx] = btn.dataset.remove.split(':');
-            if (cfg[key]) {
-                cfg[key].splice(parseInt(idx), 1);
-                renderCards();
-                debouncedSave();
-            }
+            if (cfg[key]) { cfg[key].splice(parseInt(idx), 1); renderCards(); debouncedSave(); }
         });
     });
 
-    // Link field inputs
     cardEl.querySelectorAll('input[data-link]').forEach(input => {
         input.addEventListener('input', () => {
             const [idx, field] = input.dataset.link.split(':');
             const link = cfg.links && cfg.links[parseInt(idx)];
-            if (link) {
-                link[field] = input.value;
-                debouncedSave();
-            }
+            if (link) { link[field] = input.value; debouncedSave(); }
         });
     });
 
-    // Link color sync
     cardEl.querySelectorAll('input[data-link-color]').forEach(picker => {
         picker.addEventListener('input', () => {
             const idx = parseInt(picker.dataset.linkColor);
             const textInput = cardEl.querySelector(`input[data-link="${idx}:color"]`);
             if (textInput) textInput.value = picker.value;
-            if (cfg.links && cfg.links[idx]) {
-                cfg.links[idx].color = picker.value;
-                debouncedSave();
-            }
+            if (cfg.links && cfg.links[idx]) { cfg.links[idx].color = picker.value; debouncedSave(); }
         });
     });
 
-    // Link toggle
     cardEl.querySelectorAll('[data-link-toggle]').forEach(toggle => {
         toggle.addEventListener('click', () => {
-            toggle.classList.toggle('active');
+            toggle.classList.toggle('on');
             const [idx, field] = toggle.dataset.linkToggle.split(':');
             if (cfg.links && cfg.links[parseInt(idx)]) {
-                cfg.links[parseInt(idx)][field] = toggle.classList.contains('active');
+                cfg.links[parseInt(idx)][field] = toggle.classList.contains('on');
                 debouncedSave();
             }
         });
     });
 
-    // Link remove
     cardEl.querySelectorAll('[data-remove-link]').forEach(btn => {
         btn.addEventListener('click', () => {
             const idx = parseInt(btn.dataset.removeLink);
-            if (cfg.links) {
-                cfg.links.splice(idx, 1);
-                renderCards();
-                debouncedSave();
-            }
+            if (cfg.links) { cfg.links.splice(idx, 1); renderCards(); debouncedSave(); }
         });
     });
 
-    // Add link button
     const addBtn = cardEl.querySelector('#btn-add-link');
     if (addBtn) {
         addBtn.addEventListener('click', () => {
@@ -840,32 +751,31 @@ function switchTab(view) {
 // GLOBAL EVENTS
 // ============================================================
 function setupEvents() {
-    // Card collapse/expand
     $('cards-container').addEventListener('click', (e) => {
         const toggle = e.target.closest('[data-toggle]');
         if (toggle) {
             const card = toggle.closest('.config-card');
             card.classList.toggle('collapsed');
-            return;
         }
     });
 
-    // Top bar buttons
     $('btn-build').addEventListener('click', doBuild);
     $('btn-publish').addEventListener('click', doPublish);
     $('btn-refresh-preview').addEventListener('click', () => { $('preview-iframe').src = $('preview-iframe').src; });
     $('modal-close').addEventListener('click', closeModal);
     $('modal-overlay').addEventListener('click', (e) => { if (e.target === $('modal-overlay')) closeModal(); });
 
-    // Preview tabs
     document.querySelectorAll('.preview-tab').forEach(tab => {
         tab.addEventListener('click', () => switchTab(tab.dataset.view));
     });
 
-    // Build preview button
-    $('btn-build').addEventListener('click', doBuild);
+    $('btn-collapse-all').addEventListener('click', () => {
+        document.querySelectorAll('.config-card').forEach(c => c.classList.add('collapsed'));
+    });
+    $('btn-expand-all').addEventListener('click', () => {
+        document.querySelectorAll('.config-card').forEach(c => c.classList.remove('collapsed'));
+    });
 
-    // Preview actions
     const btnOpenNewTab = $('btn-open-new-tab');
     if (btnOpenNewTab) btnOpenNewTab.addEventListener('click', openPreviewInNewTab);
 
@@ -878,18 +788,8 @@ function setupEvents() {
         });
     }
 
-    // Collapse/expand all
-    $('btn-collapse-all').addEventListener('click', () => {
-        document.querySelectorAll('.config-card').forEach(c => c.classList.add('collapsed'));
-    });
-    $('btn-expand-all').addEventListener('click', () => {
-        document.querySelectorAll('.config-card').forEach(c => c.classList.remove('collapsed'));
-    });
-
-    // Panel resizer
     setupResizer();
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveConfig(); }
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doPublish(); }
@@ -903,13 +803,11 @@ function setupResizer() {
     const resizer = $('panel-resizer');
     const panel = $('cards-panel');
     let startX, startW;
-
     resizer.addEventListener('mousedown', (e) => {
         startX = e.clientX;
         startW = panel.offsetWidth;
         resizer.classList.add('active');
         document.body.style.cssText = 'cursor:col-resize;user-select:none';
-
         const onMove = (e) => {
             const w = Math.max(320, Math.min(620, startW + e.clientX - startX));
             panel.style.width = w + 'px';
