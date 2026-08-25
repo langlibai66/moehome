@@ -11,15 +11,15 @@ window.HOMEPAGE_CONFIG = {
         ogImage: "/images/avatar.jpg"
     },
     seo: {
-        title: "杨晨旭 - 个人主页",
-        description: "欢迎访问杨晨旭的个人主页，这里聚合了我的所有在线身份与项目。",
+        title: "晨旭不想写程序 - 个人主页",
+        description: "欢迎访问晨旭不想写程序的个人主页",
         keywords: [
             "杨晨旭",
             "个人主页",
             "开发者"
         ],
         og: {
-            title: "杨晨旭 - 个人主页",
+            title: "晨旭不想写程序 - 个人主页",
             description: "开发者 / 技术爱好者",
             image: ""
         }
@@ -146,21 +146,21 @@ window.HOMEPAGE_CONFIG = {
         }
     },
     projects: {
-        enabled: true,
+        enabled: false,
         title: {
             text: "我的项目",
             icon: "fa-solid fa-folder-open"
         },
-        githubUser: "https://github.com/yourusername",
+        githubUser: "https://github.com/langlibai66",
         count: 6,
         exclude: [
             ".github"
         ]
     },
     contribution: {
-        enabled: true,
-        useRealData: true,
-        githubUser: ""
+        enabled: false,
+        useRealData: false,
+        githubUser: "https://github.com/langlibai66"
     },
     moments: {
         enabled: false,

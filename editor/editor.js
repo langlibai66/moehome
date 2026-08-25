@@ -144,80 +144,8 @@ async function init() {
     apiFetch('/api/backup', { method: 'POST' }).catch(() => {});
 }
 
-/**
- * Convert full HOMEPAGE_CONFIG into editor cfg
- * Keys match the actual nested config structure so mergeConfig
- * produces correct output.
- */
-function buildEditorConfig(full) {
-    return {
-        site: {
-            name: full?.site?.name || '',
-            tagline: full?.site?.tagline || '',
-            url: full?.site?.url || '',
-        },
-        profile: {
-            name: full?.profile?.name || '',
-            taglinePrefix: full?.profile?.tagline?.prefix || '',
-            taglineHighlight: full?.profile?.tagline?.highlight || '',
-        },
-        identity: [...(full?.identity || [])],
-        interests: [...(full?.interests || [])],
-        terminal: {
-            title: full?.terminal?.title || '',
-        },
-        quotes: [...(full?.quotes || [])],
-        theme: {
-            default: full?.theme?.default || 'auto',
-            defaultScheme: {
-                light: full?.theme?.defaultScheme?.light || '',
-                dark: full?.theme?.defaultScheme?.dark || '',
-            },
-        },
-        projects: {
-            enabled: full?.projects?.enabled ?? true,
-            title: {
-                text: full?.projects?.title?.text || '',
-            },
-            githubUser: full?.projects?.githubUser || '',
-            count: full?.projects?.count || 6,
-        },
-        contribution: {
-            enabled: full?.contribution?.enabled ?? true,
-            useRealData: full?.contribution?.useRealData ?? true,
-        },
-        rss: {
-            enabled: full?.rss?.enabled ?? false,
-            url: full?.rss?.url || '',
-        },
-        linksConfig: {
-            enabled: full?.linksConfig?.enabled ?? true,
-            title: {
-                text: full?.linksConfig?.title?.text || '',
-            },
-        },
-        links: (full?.links || []).map(l => ({ ...l })),
-        notice: {
-            enabled: full?.notice?.enabled ?? false,
-            text: full?.notice?.text || '',
-        },
-        footer: {
-            copyright: {
-                year: full?.footer?.copyright?.year || '',
-                name: full?.footer?.copyright?.name || '',
-            },
-        },
-        analytics: {
-            googleAnalytics: {
-                enabled: full?.analytics?.googleAnalytics?.enabled ?? false,
-                id: full?.analytics?.googleAnalytics?.id || '',
-            },
-        },
-        nav: {
-            enabled: full?.nav?.enabled ?? false,
-        },
-    };
-}
+// (buildEditorConfig 已移除：init() 直接用 parseFullConfig 载入完整 HOMEPAGE_CONFIG，
+//  无需中间转换层，避免与真实配置结构脱节)
 
 // ============================================================
 // VALUE HELPERS
@@ -246,20 +174,36 @@ function setVal(keyPath, value) {
 const CARD_DEFS = [
     {
         id: 'site', icon: 'fa-globe', color: '#4a9eff',
-        title: '站点基础',
+        title: '站点域名',
+        // 站点“名称/标语”实际由「站点名称与标语」卡（profile.name / profile.tagline）渲染，
+        // 这里只保留会影响构建产物资源路径的 site.url，避免误导用户编辑不生效的字段。
         fields: [
-            { label: '站点名称', key: 'site.name', type: 'text', placeholder: '杨晨旭' },
-            { label: '站点标语', key: 'site.tagline', type: 'text', placeholder: '开发者 / 技术爱好者' },
-            { label: '站点 URL', key: 'site.url', type: 'text', placeholder: 'https://example.com' },
-        ]
+            { label: '站点域名 (URL)', key: 'site.url', type: 'text', placeholder: 'https://www.aaaieee.cn（留空=相对路径）' },
+        ],
+        hint: '留空则资源使用相对路径（推荐，无需改动）。一旦填写，构建会把所有资源改成绝对路径，必须含 https:// 完整域名，否则全站 CSS / 图片会 404 导致页面崩溃。',
+    },
+    {
+        id: 'seo', icon: 'fa-magnifying-glass', color: '#00d4ff',
+        title: 'SEO 与浏览器标题',
+        fields: [
+            { label: '浏览器标题（标签页显示）', key: 'seo.title', type: 'text', placeholder: '杨晨旭 - 个人主页' },
+            { label: '页面描述（meta description）', key: 'seo.description', type: 'text', placeholder: '欢迎访问…（影响搜索结果摘要）' },
+            { label: 'OG 标题（社交分享卡片）', key: 'seo.og.title', type: 'text', placeholder: '杨晨旭 - 个人主页' },
+            { label: 'OG 描述', key: 'seo.og.description', type: 'text', placeholder: '开发者 / 技术爱好者' },
+            { label: 'OG 图片（分享预览图）', key: 'seo.og.image', type: 'text', placeholder: '/images/avatar.jpg（留空用站点图）' },
+        ],
+        sections: [
+            { label: '关键词（keywords）', itemsKey: 'seo.keywords' },
+        ],
+        hint: '浏览器标题 = 浏览器标签页显示的文字（<title>），默认只是「杨晨旭…」太单调，这里改完就生效。OG 字段决定分享到微信/微博/推特时的卡片。',
     },
     {
         id: 'profile', icon: 'fa-user', color: '#b066ff',
-        title: '个人资料',
+        title: '站点名称与标语',
         fields: [
-            { label: '显示名称', key: 'profile.name', type: 'text' },
-            { label: '个性签名前缀', key: 'profile.tagline.prefix', type: 'text', placeholder: '🐱' },
-            { label: '个性签名高亮', key: 'profile.tagline.highlight', type: 'text', placeholder: '欢迎来到我的主页' },
+            { label: '站点名称（首页大标题）', key: 'profile.name', type: 'text', placeholder: '你的名字' },
+            { label: '标语前缀（emoji）', key: 'profile.tagline.prefix', type: 'text', placeholder: '🐱' },
+            { label: '标语高亮', key: 'profile.tagline.highlight', type: 'text', placeholder: '欢迎来到我的主页' },
         ],
         sections: [
             { label: '头像', itemsKey: '__avatar__', isAvatar: true },
@@ -312,7 +256,7 @@ const CARD_DEFS = [
         fields: [
             { label: '启用项目展示', key: 'projects.enabled', type: 'toggle', get: () => cfg.projects?.enabled ?? true },
             { label: '板块标题', key: 'projects.title.text', type: 'text', placeholder: '我的项目' },
-            { label: 'GitHub 用户名', key: 'projects.githubUser', type: 'text', placeholder: 'yourusername' },
+            { label: 'GitHub 主页 URL', key: 'projects.githubUser', type: 'text', placeholder: 'https://github.com/username' },
             { label: '显示数量', key: 'projects.count', type: 'number', min: 1, max: 12 },
         ]
     },
@@ -321,15 +265,8 @@ const CARD_DEFS = [
         title: '贡献图',
         fields: [
             { label: '启用贡献图', key: 'contribution.enabled', type: 'toggle', get: () => cfg.contribution?.enabled ?? true },
+            { label: 'GitHub 用户主页（贡献图真实数据来源）', key: 'contribution.githubUser', type: 'text', placeholder: 'https://github.com/username' },
             { label: '使用真实数据', key: 'contribution.useRealData', type: 'toggle', get: () => cfg.contribution?.useRealData ?? true },
-        ]
-    },
-    {
-        id: 'notice', icon: 'fa-shield-halved', color: '#ff3b3b',
-        title: '安全提示',
-        fields: [
-            { label: '启用提示', key: 'notice.enabled', type: 'toggle', get: () => cfg.notice?.enabled ?? false },
-            { label: '提示内容', key: 'notice.text', type: 'text', placeholder: '输入提示内容...' },
         ]
     },
     {
@@ -353,6 +290,25 @@ const CARD_DEFS = [
 // ============================================================
 // RENDER CARDS
 // ============================================================
+// 计算卡片右上角徽标：链接卡显示条数，纯数组卡显示项数，
+// 带开关的卡显示「已启用 / 已停用」，其余（站点/个人资料/主题/页脚）不显示徽标
+function computeBadge(def) {
+    if (def.sections?.some(s => s.isLinks)) {
+        return `${(cfg.links || []).length} 条`;
+    }
+    const arraySecs = def.sections?.filter(s => !s.isLinks && !s.isAvatar);
+    if (arraySecs && arraySecs.length) {
+        const total = arraySecs.reduce((n, s) => n + (cfg[s.itemsKey] || []).length, 0);
+        return `${total} 项`;
+    }
+    const toggleField = def.toggle || def.fields?.find(f => f.type === 'toggle');
+    if (toggleField) {
+        const on = toggleField.get ? toggleField.get() : getVal(toggleField.key);
+        return on ? '已启用' : '已停用';
+    }
+    return '';
+}
+
 function renderCards() {
     const container = $('cards-container');
     container.innerHTML = '';
@@ -366,9 +322,7 @@ function createCard(def) {
     el.className = 'config-card';
     el.dataset.id = def.id;
 
-    const badge = def.sections?.some(s => s.isLinks)
-        ? `${(cfg.links || []).length} 条`
-        : def.id;
+    const badge = computeBadge(def);
 
     let bodyHTML = '';
 
@@ -409,11 +363,11 @@ function createCard(def) {
                     <i class="fa-solid ${def.icon}"></i>
                 </div>
                 <span class="card-title">${def.title}</span>
-                <span class="card-badge">${badge}</span>
+                ${badge ? `<span class="card-badge">${badge}</span>` : ''}
             </div>
             <i class="fa-solid fa-chevron-down card-toggle"></i>
         </div>
-        <div class="card-body">${bodyHTML}</div>
+        <div class="card-body">${bodyHTML}${def.hint ? `<p class="card-hint">${esc(def.hint)}</p>` : ''}</div>
     `;
 
     el.querySelector('.card-header').addEventListener('click', () => {
@@ -471,7 +425,9 @@ function arraySectionHTML(sec) {
 
     // Special avatar upload section
     if (sec.isAvatar) {
-        const avatarPath = cfg.profile?.avatar || 'images/avatar.webp';
+        const rawAvatar = cfg.profile?.avatar || 'images/avatar.webp';
+        // 编辑器页在 /editor 下，相对路径会解析到 /editor/images/... 导致 404，统一转绝对路径
+        const avatarPath = rawAvatar.startsWith('/') ? rawAvatar : '/' + rawAvatar;
         return `<div class="field-group">
             <label class="field-label">${esc(sec.label)}</label>
             <div class="avatar-upload" id="avatar-upload">
@@ -507,6 +463,7 @@ function arraySectionHTML(sec) {
     return `<div class="field-group">
         <label class="field-label">${esc(sec.label)} (${items.length})</label>
         <div class="array-list" data-array-key="${itemsKey}">${itemsHTML}</div>
+        ${(!sec.isLinks && !sec.isAvatar) ? `<button class="btn-add" data-add-plain="${itemsKey}"><i class="fa-solid fa-plus"></i> 添加</button>` : ''}
     </div>`;
 }
 
@@ -568,7 +525,12 @@ function addButtonHTML(opts) {
 // ============================================================
 function bindCardEvents(cardEl) {
     cardEl.querySelectorAll('input[data-key]').forEach(input => {
-        input.addEventListener('input', () => setVal(input.dataset.key, input.value));
+        input.addEventListener('input', () => {
+            // 数字字段存为 Number 而非字符串，保持配置类型正确
+            let v = input.value;
+            if (input.type === 'number') v = v === '' ? '' : Number(v);
+            setVal(input.dataset.key, v);
+        });
     });
 
     cardEl.querySelectorAll('select[data-key]').forEach(sel => {
@@ -595,6 +557,18 @@ function bindCardEvents(cardEl) {
         btn.addEventListener('click', () => {
             const [key, idx] = btn.dataset.remove.split(':');
             if (cfg[key]) { cfg[key].splice(parseInt(idx), 1); renderCards(); debouncedSave(); }
+        });
+    });
+
+    // 普通数组（身份/兴趣/语录/关键词…）的通用「添加」按钮
+    cardEl.querySelectorAll('[data-add-plain]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const key = btn.dataset.addPlain;
+            if (!cfg[key]) cfg[key] = [];
+            cfg[key].push('');
+            renderCards();
+            debouncedSave();
         });
     });
 

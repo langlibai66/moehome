@@ -483,6 +483,31 @@
                 border-color: var(--scheme-accent, var(--accent));
                 box-shadow: 0 0 10px var(--scheme-accent, var(--accent));
             }
+
+            /* 邮箱复制提示 */
+            .email-toast {
+                position: fixed;
+                left: 50%;
+                bottom: 40px;
+                transform: translateX(-50%) translateY(20px);
+                background: rgba(20, 20, 28, 0.95);
+                color: #fff;
+                padding: 12px 22px;
+                border-radius: 10px;
+                font-size: 14px;
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity .25s ease, transform .25s ease;
+                z-index: 9999;
+                max-width: 90vw;
+                word-break: break-all;
+                text-align: center;
+            }
+            .email-toast.show {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
         </style>
 
         <!-- Main Stylesheet: async load via preload -->
@@ -596,5 +621,40 @@
 
         <!-- Main Application Script: defer for non-blocking -->
         <script src="app.js" defer></script>
+
+        <!-- 邮箱点击复制 + 提示（由 build.js 生成的邮件链接 onclick 调用） -->
+        <script>
+        window.__copyEmail = function (el) {
+            try {
+                var enc = el.getAttribute('data-email-encoded');
+                var email = atob(enc).split('').reverse().join('');
+                var done = function () { window.__showEmailToast('已复制邮箱：' + email); };
+                var fail = function () { window.__showEmailToast('复制失败，邮箱：' + email); };
+                var fallback = function () {
+                    var ta = document.createElement('textarea');
+                    ta.value = email; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); done(); } catch (e) { fail(); }
+                    document.body.removeChild(ta);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(email).then(done, fallback);
+                } else { fallback(); }
+            } catch (e) { window.__showEmailToast('邮箱复制出错'); }
+        };
+        window.__showEmailToast = function (msg) {
+            var t = document.getElementById('email-toast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'email-toast';
+                t.className = 'email-toast';
+                document.body.appendChild(t);
+            }
+            t.textContent = msg;
+            t.classList.add('show');
+            clearTimeout(window.__emailToastTimer);
+            window.__emailToastTimer = setTimeout(function () { t.classList.remove('show'); }, 2400);
+        };
+        </script>
     </body>
 </html>

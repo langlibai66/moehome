@@ -884,13 +884,20 @@ function getEmailDecodeJS(encoded) {
  * @param {boolean} antiCrawler - 是否启用反爬虫
  * @returns {{ href: string, attrs: string }} 处理后的 href 和属性
  */
+// 判断是否为邮箱地址（支持 mailto: 前缀或纯邮箱字符串）
+function isEmailAddress(url) {
+    if (url.startsWith('mailto:')) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(url).trim());
+}
+
 function processLinkUrl(url, external, antiCrawler = true) {
-    if (antiCrawler && url.startsWith('mailto:')) {
-        const email = url.replace('mailto:', '');
+    if (antiCrawler && isEmailAddress(url)) {
+        const email = url.replace('mailto:', '').trim();
         const encoded = encodeEmail(email);
+        // 改为点击复制邮箱并弹提示，而不是拉起邮件客户端（更通用，移动端也友好）
         return {
             href: 'javascript:void(0)',
-            attrs: `onclick="location.href='mailto:'+${getEmailDecodeJS(encoded)}"`,
+            attrs: `data-email-encoded="${encoded}" onclick="window.__copyEmail(this)"`,
             isEmail: true
         };
     }
@@ -1389,7 +1396,7 @@ function generateSkeletonRSSHTML(rssConfig) {
 
 // 提取 Projects 配置
 function extractProjectsConfig() {
-    const projectsMatch = configContent.match(/projects:\s*\{([\s\S]*?)\n\s*\},\s*\n\s*\/\/ =/);
+    const projectsMatch = configContent.match(/projects:\s*\{([\s\S]*?)\n\s*\},\s*\n\s*contribution:/);
     if (!projectsMatch) {
         return {
             enabled: false,
@@ -2423,12 +2430,21 @@ function extractArrayFromContent(content, key) {
     return items;
 }
 
+// 规范化站点 URL：去掉首尾空白，缺协议时补齐 https://，去掉结尾斜杠。
+// 否则 rewriteAssetUrls 会把 "www.x.com" 当相对路径拼接，导致全站资源 404。
+function normalizeSiteUrl(u) {
+    if (!u || !String(u).trim()) return '';
+    let s = String(u).trim();
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+    return s.replace(/\/+$/, '');
+}
+
 // 从 config.js 提取所有配置
 const config = {
     // Site - 站点核心信息
     site: extractSiteConfig(),
-    // 兼容旧字段（从 site.url 同步）
-    siteUrl: extractSiteConfig().url,
+    // 兼容旧字段（从 site.url 同步）；规范化协议与结尾斜杠
+    siteUrl: normalizeSiteUrl(extractSiteConfig().url),
 
     // SEO（首页专用）
     title: extractString(/title:\s*['"`]([^'"`]+)['"`]/, 'MoeWah - 技术博主 / 开源爱好者 / AI 探索者'),
