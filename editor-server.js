@@ -7,7 +7,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
 
 const PORT = parseInt(process.env.EDITOR_PORT || process.env.PORT || '3000', 10);
 
@@ -214,9 +214,20 @@ async function main() {
     });
 
     server.listen(port, () => {
+        const editorUrl = `http://localhost:${port}/editor`;
         console.log(`\n🚀 MoeWah Editor Server`);
-        console.log(`   📝 编辑器: http://localhost:${port}/editor`);
+        console.log(`   📝 编辑器: ${editorUrl}`);
         console.log(`   👁  预览:   http://localhost:${port}/\n`);
+        // 自动打开浏览器（设 EDITOR_NO_OPEN=1 可关闭）
+        if (!process.env.EDITOR_NO_OPEN) {
+            if (process.platform === 'win32') {
+                exec(`start "" "${editorUrl}"`);
+            } else if (process.platform === 'darwin') {
+                exec(`open "${editorUrl}"`);
+            } else {
+                exec(`xdg-open "${editorUrl}"`);
+            }
+        }
     });
 }
 

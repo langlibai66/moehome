@@ -740,9 +740,17 @@ function showToast(msg, type) {
 // ============================================================
 // BUILD & PUBLISH
 // ============================================================
+// 强制保存：清空 debounce 定时器，立即落盘
+// 发布/构建前必须调用，否则读到的还是旧配置
+async function flushSave() {
+    clearTimeout(saveTimer);
+    await saveConfig();
+}
+
 async function doBuild() {
-    showToast('正在构建...', 'info');
+    showToast('正在保存并构建...', 'info');
     try {
+        await flushSave();
         const res = await fetch('/api/build', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
@@ -883,9 +891,17 @@ async function doPublish() {
     const title = $('modal-title');
     const body = $('modal-body');
 
+    // 第一步：强制保存当前配置（防止 debounce 未触发，把旧配置发出去）
+    title.textContent = '准备发布...';
+    body.innerHTML = `<div class="modal-spinner"><div class="spinner"></div><span>正在保存最新配置...</span></div>`;
+    overlay.classList.add('active');
+    try {
+        await flushSave();
+    } catch (e) { /* saveConfig 内部已提示，继续用已保存内容发布 */ }
+
+    // 第二步：构建 → 提交 → 推送
     title.textContent = '发布中...';
     body.innerHTML = `<div class="modal-spinner"><div class="spinner"></div><span>正在构建并推送到 GitHub...</span></div>`;
-    overlay.classList.add('active');
 
     try {
         const res = await fetch('/api/publish', { method: 'POST' });
@@ -896,7 +912,11 @@ async function doPublish() {
             body.innerHTML = `
                 <div style="text-align:center;padding:8px 0">
                     <i class="fa-solid fa-check" style="font-size:36px;color:var(--success);display:block;margin-bottom:10px"></i>
-                    <p style="color:var(--text-secondary);margin-bottom:14px">已成功推送到 GitHub</p>
+                    <p style="color:var(--text-secondary);margin-bottom:6px">已推送到 GitHub</p>
+                    <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        Cloudflare Pages 检测到推送后将自动构建部署，约 1 分钟后线上生效
+                    </p>
                 </div>
                 <div class="modal-output">${esc(data.output)}</div>
                 <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
