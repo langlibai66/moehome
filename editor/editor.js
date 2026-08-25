@@ -94,23 +94,54 @@ function serializeValue(val, indent) {
 let rawConfig = '';
 let cfg = {};
 let saveTimer = null;
+let serverDead = false;   // 编辑器服务是否已停止（连接失败时置位）
 
 const $ = id => document.getElementById(id);
+
+// ============================================================
+// API FETCH WRAPPER — 检测服务是否停止，停止时显示常驻横幅
+// ============================================================
+async function apiFetch(url, opts) {
+    try {
+        const res = await fetch(url, opts);
+        if (serverDead) hideServerBanner();
+        return res;
+    } catch (e) {
+        showServerBanner();
+        throw e;
+    }
+}
+
+function showServerBanner() {
+    serverDead = true;
+    const b = $('server-banner');
+    if (b) b.classList.remove('hidden');
+}
+
+function hideServerBanner() {
+    serverDead = false;
+    const b = $('server-banner');
+    if (b) b.classList.add('hidden');
+}
 
 // ============================================================
 // INIT — load config using parseFullConfig
 // ============================================================
 async function init() {
     try {
-        const res = await fetch('/api/config');
+        const res = await apiFetch('/api/config');
         const data = await res.json();
         rawConfig = data.content;
         cfg = parseFullConfig(rawConfig);
         renderCards();
+        loadPreviewInPane();   // 进入编辑器即把当前构建结果渲染到预览栏
         showStatus('ready');
     } catch (e) {
-        showToast('加载配置失败: ' + e.message, 'error');
+        // 服务挂了时横幅已给出指引，这里只在服务正常但加载失败时提示
+        if (!serverDead) showToast('加载配置失败: ' + e.message, 'error');
     }
+    // 会话检查点：进入编辑器时备份一次当前配置（服务端自动去重，内容相同则跳过）
+    apiFetch('/api/backup', { method: 'POST' }).catch(() => {});
 }
 
 /**
@@ -637,7 +668,7 @@ function bindCardEvents(cardEl) {
 
             reader.onload = async (ev) => {
                 try {
-                    const res = await fetch('/api/upload-avatar', {
+                    const res = await apiFetch('/api/upload-avatar', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ dataUrl: ev.target.result }),
@@ -677,14 +708,11 @@ function debouncedSave() {
 }
 
 async function saveConfig() {
-    // Auto-backup before saving
-    try {
-        await fetch('/api/backup', { method: 'POST' });
-    } catch (e) { /* silent */ }
-
+    // 注意：不再在每次保存时备份（会刷爆备份槽位）。
+    // 备份时机 = 打开编辑器时的会话检查点 + 恢复/重置前 + 手动创建备份。
     try {
         rawConfig = serializeConfig(cfg);
-        const res = await fetch('/api/config', {
+        const res = await apiFetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: rawConfig }),
@@ -696,7 +724,8 @@ async function saveConfig() {
         }
     } catch (e) {
         showStatus('error');
-        showToast('保存失败: ' + e.message, 'error');
+        // 服务停止时横幅已说明情况，不再弹重复 toast
+        if (!serverDead) showToast('保存失败: ' + e.message, 'error');
     }
 }
 
@@ -751,36 +780,58 @@ async function doBuild() {
     showToast('正在保存并构建...', 'info');
     try {
         await flushSave();
-        const res = await fetch('/api/build', { method: 'POST' });
+        const res = await apiFetch('/api/build', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            window.open('/', '_blank');
-            showToast('构建完成，已在新标签页打开预览', 'success');
+            loadPreviewInPane(true);
+            showToast('构建完成，已在预览栏中显示', 'success');
         } else {
             showToast('构建失败', 'error');
         }
     } catch (e) {
-        showToast('构建请求失败', 'error');
+        if (!serverDead) showToast('构建请求失败', 'error');
     }
 }
 
+// 把当前已构建的站点加载到编辑器内的预览栏 iframe
+// rebuild=true 时追加时间戳强制刷新，避免命中缓存
+function loadPreviewInPane() {
+    const iframe = $('preview-iframe');
+    const placeholder = $('preview-placeholder');
+    const wrap = $('preview-frame-wrap');
+    if (!iframe) return;
+
+    iframe.src = '/' + (iframe.dataset.loaded ? '?t=' + Date.now() : '');
+    iframe.dataset.loaded = '1';
+
+    if (placeholder) placeholder.classList.add('hidden');
+    if (wrap) wrap.classList.remove('hidden');
+
+    const urlBar = $('preview-url');
+    if (urlBar) urlBar.textContent = location.origin + '/';
+
+    switchTab('preview');
+}
+
 async function doBackup() {
+    closeMenu();
     try {
-        const res = await fetch('/api/backup', { method: 'POST' });
+        const res = await apiFetch('/api/backup', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            showToast('备份成功', 'success');
+            showToast(data.skipped ? '配置与最近备份相同，未创建新备份' : '备份已创建', 'success');
         } else {
             showToast('备份失败: ' + data.error, 'error');
         }
     } catch (e) {
-        showToast('备份失败', 'error');
+        if (!serverDead) showToast('备份失败', 'error');
     }
 }
 
 async function doRollback() {
+    closeMenu();
     try {
-        const res = await fetch('/api/backups');
+        const res = await apiFetch('/api/backups');
         const data = await res.json();
         const backups = data.backups || [];
 
@@ -789,73 +840,126 @@ async function doRollback() {
             return;
         }
 
-        // Show backup list in modal
+        // 第一步：展示备份列表
         const overlay = $('modal-overlay');
         const title = $('modal-title');
         const body = $('modal-body');
 
-        title.textContent = '选择要回退的备份';
-        const backupList = backups.map((b, i) => {
+        title.textContent = '从备份恢复';
+        const backupList = backups.map(b => {
             const time = new Date(b.time).toLocaleString('zh-CN');
+            const size = (b.size / 1024).toFixed(1) + ' KB';
             return `<div class="backup-item" data-backup="${esc(b.name)}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--input-border)'">
                 <div>
-                    <div style="font-size:13px;color:var(--text)">${esc(b.name)}</div>
-                    <div style="font-size:11px;color:var(--text3);margin-top:2px">${time}</div>
+                    <div style="font-size:13px;color:var(--text)">${time}</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px;font-family:var(--mono)">${esc(b.name)} · ${size}</div>
                 </div>
                 <i class="fa-solid fa-clock-rotate-left" style="color:var(--text3)"></i>
             </div>`;
         }).join('');
 
         body.innerHTML = `
-            <p style="color:var(--text-secondary);margin-bottom:12px;font-size:13px">点击选择一个备份进行回退（最多保留 10 个备份）：</p>
-            <div style="display:flex;flex-direction:column;gap:6px">${backupList}</div>
+            <p style="color:var(--text-secondary);margin-bottom:12px;font-size:13px">选择一个备份恢复（最多保留 10 份，恢复前当前配置会自动备份）：</p>
+            <div style="display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto">${backupList}</div>
             <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">取消</button></div>
         `;
         overlay.classList.add('active');
 
-        // Bind click events to backup items
+        // 第二步：点击某项 → 二次确认 → 恢复
         body.querySelectorAll('.backup-item').forEach(item => {
-            item.addEventListener('click', async () => {
+            item.addEventListener('click', () => {
                 const backupName = item.dataset.backup;
-                try {
-                    const restoreRes = await fetch('/api/restore', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: backupName }),
-                    });
-                    const restoreData = await restoreRes.json();
-                    if (restoreData.success) {
-                        closeModal();
-                        showToast('回退成功，正在重新加载...', 'success');
-                        // Reload config
-                        setTimeout(() => location.reload(), 800);
-                    } else {
-                        showToast('回退失败: ' + restoreData.error, 'error');
-                    }
-                } catch (e) {
-                    showToast('回退失败', 'error');
-                }
+                const timeText = item.querySelector('div > div:first-child').textContent;
+                showRestoreConfirm(backupName, timeText);
             });
         });
     } catch (e) {
-        showToast('获取备份列表失败', 'error');
+        if (!serverDead) showToast('获取备份列表失败', 'error');
+    }
+}
+
+function showRestoreConfirm(backupName, timeText) {
+    const title = $('modal-title');
+    const body = $('modal-body');
+    title.textContent = '确认恢复？';
+    body.innerHTML = `
+        <div style="text-align:center;padding:8px 0">
+            <i class="fa-solid fa-clock-rotate-left" style="font-size:36px;color:var(--info);display:block;margin-bottom:10px"></i>
+            <p style="color:var(--text-secondary);margin-bottom:6px">将把配置恢复到这个快照：</p>
+            <p style="font-family:var(--mono);font-size:13px;color:var(--text);margin-bottom:4px">${esc(backupName)}</p>
+            <p style="color:var(--text3);font-size:12px">${esc(timeText)}</p>
+            <p style="color:var(--text3);font-size:12px;margin-top:12px">恢复前会自动备份当前配置，随时可以再恢复回来</p>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+            <button class="btn-sm" onclick="closeModal()">取消</button>
+            <button class="btn-sm danger" id="btn-confirm-restore">确认恢复</button>
+        </div>
+    `;
+    const confirmBtn = $('btn-confirm-restore');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            closeModal();
+            showToast('正在恢复...', 'info');
+            try {
+                // 恢复前先备份当前配置
+                await apiFetch('/api/backup', { method: 'POST' });
+                const restoreRes = await apiFetch('/api/restore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: backupName }),
+                });
+                const restoreData = await restoreRes.json();
+                if (restoreData.success) {
+                    showToast('恢复成功，正在重新加载...', 'success');
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    showToast('恢复失败: ' + restoreData.error, 'error');
+                }
+            } catch (e) {
+                if (!serverDead) showToast('恢复失败', 'error');
+            }
+        });
     }
 }
 
 async function doReset() {
+    closeMenu();
     const overlay = $('modal-overlay');
     const title = $('modal-title');
     const body = $('modal-body');
-    title.textContent = '确认重置？';
+
+    // 先查有没有未发布的修改，没有就不需要恢复
+    let modified = true;
+    try {
+        const res = await apiFetch('/api/status');
+        const data = await res.json();
+        modified = !!data.configModified;
+    } catch (e) { /* 状态查不到时按有修改处理 */ }
+
+    if (!modified) {
+        title.textContent = '没有需要恢复的内容';
+        body.innerHTML = `
+            <div style="text-align:center;padding:10px 0">
+                <i class="fa-solid fa-circle-check" style="font-size:36px;color:var(--success);display:block;margin-bottom:10px"></i>
+                <p style="color:var(--text-secondary)">当前配置与最近发布的版本一致，无需恢复</p>
+            </div>
+            <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>
+        `;
+        overlay.classList.add('active');
+        return;
+    }
+
+    title.textContent = '恢复到发布版';
     body.innerHTML = `
-        <div style="text-align:center;padding:10px 0">
+        <div style="text-align:center;padding:8px 0">
             <i class="fa-solid fa-triangle-exclamation" style="font-size:36px;color:var(--warn);display:block;margin-bottom:10px"></i>
-            <p style="color:var(--text-secondary);margin-bottom:6px">此操作将恢复 config.js 到初始状态</p>
-            <p style="color:var(--text3);font-size:12px">所有修改将丢失，但会自动创建备份</p>
+            <p style="color:var(--text-secondary);margin-bottom:6px">将把配置恢复到最近一次发布（git 提交）的版本</p>
+            <p style="color:var(--text3);font-size:12px">当前所有未发布的修改会被丢弃</p>
+            <p style="color:var(--text3);font-size:12px;margin-top:10px"><i class="fa-solid fa-shield-halved"></i> 丢弃前会自动备份，可从「从备份恢复」找回</p>
         </div>
         <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
             <button class="btn-sm" onclick="closeModal()">取消</button>
-            <button class="btn-sm danger" id="btn-confirm-reset">确认重置</button>
+            <button class="btn-sm danger" id="btn-confirm-reset">确认恢复</button>
         </div>
     `;
     overlay.classList.add('active');
@@ -863,20 +967,20 @@ async function doReset() {
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
             closeModal();
-            showToast('正在重置...', 'info');
+            showToast('正在恢复到发布版...', 'info');
             try {
-                // Auto-backup before reset
-                await fetch('/api/backup', { method: 'POST' });
-                const res = await fetch('/api/reset', { method: 'POST' });
+                // 丢弃前自动备份
+                await apiFetch('/api/backup', { method: 'POST' });
+                const res = await apiFetch('/api/reset', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('已恢复初始配置，重新加载中...', 'success');
+                    showToast('已恢复到发布版，重新加载中...', 'success');
                     setTimeout(() => location.reload(), 800);
                 } else {
-                    showToast('重置失败: ' + data.error, 'error');
+                    showToast('恢复失败: ' + data.error, 'error');
                 }
             } catch (e) {
-                showToast('重置失败', 'error');
+                if (!serverDead) showToast('恢复失败', 'error');
             }
         });
     }
@@ -904,7 +1008,7 @@ async function doPublish() {
     body.innerHTML = `<div class="modal-spinner"><div class="spinner"></div><span>正在构建并推送到 GitHub...</span></div>`;
 
     try {
-        const res = await fetch('/api/publish', { method: 'POST' });
+        const res = await apiFetch('/api/publish', { method: 'POST' });
         const data = await res.json();
 
         if (data.success) {
@@ -920,6 +1024,7 @@ async function doPublish() {
                 </div>
                 <div class="modal-output">${esc(data.output)}</div>
                 <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
+            loadPreviewInPane(true);   // 发布后同步刷新编辑器内预览栏
         } else {
             title.textContent = '发布失败';
             body.innerHTML = `
@@ -931,6 +1036,7 @@ async function doPublish() {
                 <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
         }
     } catch (e) {
+        if (serverDead) return;   // 横幅已给出重启指引，不再弹失败弹窗
         title.textContent = '发布失败';
         body.innerHTML = `<div class="modal-output">${esc(e.message)}</div>
             <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
@@ -938,6 +1044,12 @@ async function doPublish() {
 }
 
 function closeModal() { $('modal-overlay').classList.remove('active'); }
+
+// 关闭顶部 ⋯ 下拉菜单
+function closeMenu() {
+    const wrap = $('menu-wrap');
+    if (wrap) wrap.classList.remove('open');
+}
 
 // ============================================================
 // PREVIEW TABS
@@ -981,6 +1093,19 @@ function setupEvents() {
     $('modal-close').addEventListener('click', closeModal);
     $('modal-overlay').addEventListener('click', (e) => { if (e.target === $('modal-overlay')) closeModal(); });
 
+    // 顶部 ⋯ 下拉菜单
+    const btnMore = $('btn-more');
+    if (btnMore) {
+        btnMore.addEventListener('click', (e) => {
+            e.stopPropagation();
+            $('menu-wrap').classList.toggle('open');
+        });
+    }
+    document.addEventListener('click', (e) => {
+        const wrap = $('menu-wrap');
+        if (wrap && !wrap.contains(e.target)) closeMenu();
+    });
+
     document.querySelectorAll('.preview-tab').forEach(tab => {
         tab.addEventListener('click', () => switchTab(tab.dataset.view));
     });
@@ -1009,6 +1134,7 @@ function setupEvents() {
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveConfig(); }
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doPublish(); }
+        if (e.key === 'Escape') closeMenu();
     });
 }
 

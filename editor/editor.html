@@ -19,23 +19,40 @@
             </span>
         </div>
         <div class="header-right">
-            <button class="btn btn-danger" id="btn-reset" title="恢复原始配置（危险操作）">
-                <i class="fa-solid fa-triangle-exclamation"></i> 重置
-            </button>
-            <button class="btn btn-secondary" id="btn-backup" title="手动备份">
-                <i class="fa-solid fa-clock-rotate-left"></i> 备份
-            </button>
-            <button class="btn btn-secondary" id="btn-rollback" title="回退到上一次备份">
-                <i class="fa-solid fa-rotate-left"></i> 回退
-            </button>
-            <button class="btn btn-secondary" id="btn-build" title="构建并预览">
+            <button class="btn btn-secondary" id="btn-build" title="保存并构建，在右栏预览">
                 <i class="fa-solid fa-eye"></i> 构建预览
             </button>
-            <button class="btn btn-primary" id="btn-publish" title="构建并推送到 GitHub">
+            <button class="btn btn-primary" id="btn-publish" title="构建并推送到 GitHub，触发 Cloudflare 自动部署">
                 <i class="fa-solid fa-rocket"></i> 一键发布
             </button>
+            <div class="menu-wrap" id="menu-wrap">
+                <button class="btn btn-icon-only" id="btn-more" title="备份与恢复">
+                    <i class="fa-solid fa-ellipsis"></i>
+                </button>
+                <div class="dropdown-menu" id="dropdown-menu">
+                    <button class="menu-item" id="btn-backup">
+                        <span class="menu-item-label"><i class="fa-solid fa-floppy-disk"></i> 创建备份</span>
+                        <span class="menu-hint">保存当前配置快照</span>
+                    </button>
+                    <button class="menu-item" id="btn-rollback">
+                        <span class="menu-item-label"><i class="fa-solid fa-clock-rotate-left"></i> 从备份恢复</span>
+                        <span class="menu-hint">回到某个历史快照</span>
+                    </button>
+                    <div class="menu-divider"></div>
+                    <button class="menu-item menu-item-danger" id="btn-reset">
+                        <span class="menu-item-label"><i class="fa-solid fa-arrow-rotate-left"></i> 恢复到发布版</span>
+                        <span class="menu-hint">丢弃所有未发布的修改</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </header>
+
+    <!-- 服务停止横幅 -->
+    <div class="server-banner hidden" id="server-banner">
+        <i class="fa-solid fa-plug-circle-xmark"></i>
+        <span>编辑器服务已停止 — 双击 <b>project/start-editor.bat</b> 重启服务，然后刷新本页</span>
+    </div>
 
     <!-- Main Layout -->
     <main class="editor-main">
@@ -79,8 +96,8 @@
                 <div class="preview-placeholder" id="preview-placeholder">
                     <div class="preview-placeholder-content">
                         <i class="fa-solid fa-eye"></i>
-                        <p>点击「构建预览」查看效果</p>
-                        <p style="font-size:11px;color:var(--text3);margin-top:4px">预览将在新标签页中打开</p>
+                        <p>预览在右侧栏内嵌显示</p>
+                        <p style="font-size:11px;color:var(--text3);margin-top:4px">修改配置后点击「构建预览」刷新</p>
                     </div>
                 </div>
                 <div class="preview-frame-wrap hidden" id="preview-frame-wrap">

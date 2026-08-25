@@ -433,6 +433,96 @@ input[type="number"] { width: 80px; }
 }
 .btn-add:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 
+/* ========== HEADER BUTTONS ========== */
+.btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: var(--sans);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-focus); color: var(--text); background: var(--card-hover); }
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.btn-primary:hover { background: #d4714f; border-color: #d4714f; color: #fff; }
+.btn-secondary { background: var(--card); }
+.btn-icon-only { padding: 6px 10px; }
+
+/* ========== DROPDOWN MENU ========== */
+.menu-wrap { position: relative; }
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 230px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    padding: 6px;
+    z-index: 200;
+}
+.menu-wrap.open .dropdown-menu { display: block; }
+.menu-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--sans);
+}
+.menu-item:hover { background: var(--card-hover); }
+.menu-item-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.menu-item-label i { width: 14px; text-align: center; color: var(--text2); }
+.menu-hint { font-size: 11px; color: var(--text3); }
+.menu-item-danger:hover { background: rgba(255,59,59,0.08); }
+.menu-item-danger .menu-item-label, .menu-item-danger .menu-item-label i { color: var(--error); }
+.menu-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+
+/* ========== SERVER BANNER ========== */
+.server-banner {
+    position: fixed;
+    top: var(--header-h);
+    left: 0; right: 0;
+    padding: 8px 16px;
+    background: rgba(255,149,0,0.12);
+    border-bottom: 1px solid rgba(255,149,0,0.3);
+    color: var(--warn);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    z-index: 150;
+}
+.server-banner.hidden { display: none; }
+.server-banner b { color: var(--text); }
+
 /* ========== PREVIEW PANEL ========== */
 .preview-panel {
     flex: 1;

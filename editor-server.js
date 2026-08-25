@@ -97,12 +97,22 @@ async function main() {
             return;
         }
 
-        // API: POST backup config (create a backup before save)
+        // API: POST backup config (dedupe: skip if identical to latest backup)
         if (url.pathname === '/api/backup' && req.method === 'POST') {
             try {
                 const configPath = path.join(PROJECT_ROOT, 'src', 'config.js');
                 const backupDir = path.join(PROJECT_ROOT, '.editor-backups');
                 if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+                const current = fs.readFileSync(configPath, 'utf8');
+                // 去重：与最新一份备份内容相同则跳过，避免每次保存都产生同质备份
+                const existing = fs.readdirSync(backupDir).filter(f => f.startsWith('config-')).sort().reverse();
+                if (existing.length > 0) {
+                    const latest = fs.readFileSync(path.join(backupDir, existing[0]), 'utf8');
+                    if (latest === current) {
+                        res.writeHead(200); res.end(JSON.stringify({ success: true, skipped: true, backup: existing[0] }));
+                        return;
+                    }
+                }
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
                 const backupPath = path.join(backupDir, `config-${timestamp}.js`);
                 fs.copyFileSync(configPath, backupPath);
@@ -110,6 +120,20 @@ async function main() {
                 const backups = fs.readdirSync(backupDir).filter(f => f.startsWith('config-')).sort().reverse();
                 backups.slice(10).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
                 res.writeHead(200); res.end(JSON.stringify({ success: true, backup: backupPath }));
+            } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+        }
+
+        // API: GET status — whether config.js has unpublished changes vs git HEAD
+        if (url.pathname === '/api/status' && req.method === 'GET') {
+            try {
+                let modified = false;
+                try {
+                    execSync('git diff --exit-code HEAD -- src/config.js', { cwd: PROJECT_ROOT, stdio: 'pipe' });
+                } catch (diffErr) { modified = true; }   // exit code != 0 => config differs from HEAD
+                res.writeHead(200); res.end(JSON.stringify({ success: true, configModified: modified }));
             } catch (e) {
                 res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
             }
