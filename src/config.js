@@ -7,7 +7,7 @@ window.HOMEPAGE_CONFIG = {
     site: {
         name: "晨旭不想写程序",
         tagline: "技术爱好者",
-        url: "www.aaaieee.cn",
+        url: "",
         ogImage: "/images/avatar.jpg"
     },
     seo: {
