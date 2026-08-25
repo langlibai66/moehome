@@ -122,8 +122,7 @@ async function init() {
         const res = await fetch('/api/config');
         const data = await res.json();
         rawConfig = data.content;
-        const full = parseFullConfig(rawConfig);
-        cfg = buildEditorConfig(full);
+        cfg = parseFullConfig(rawConfig);
         renderCards();
         showStatus('ready');
     } catch (e) {
@@ -132,7 +131,9 @@ async function init() {
 }
 
 /**
- * Convert full HOMEPAGE_CONFIG into editor-friendly flat structure
+ * Convert full HOMEPAGE_CONFIG into editor cfg
+ * Keys match the actual nested config structure so mergeConfig
+ * produces correct output.
  */
 function buildEditorConfig(full) {
     return {
@@ -154,12 +155,16 @@ function buildEditorConfig(full) {
         quotes: [...(full?.quotes || [])],
         theme: {
             default: full?.theme?.default || 'auto',
-            lightScheme: full?.theme?.defaultScheme?.light || '',
-            darkScheme: full?.theme?.defaultScheme?.dark || '',
+            defaultScheme: {
+                light: full?.theme?.defaultScheme?.light || '',
+                dark: full?.theme?.defaultScheme?.dark || '',
+            },
         },
         projects: {
             enabled: full?.projects?.enabled ?? true,
-            titleText: full?.projects?.title?.text || '',
+            title: {
+                text: full?.projects?.title?.text || '',
+            },
             githubUser: full?.projects?.githubUser || '',
             count: full?.projects?.count || 6,
         },
@@ -173,7 +178,9 @@ function buildEditorConfig(full) {
         },
         linksConfig: {
             enabled: full?.linksConfig?.enabled ?? true,
-            titleText: full?.linksConfig?.title?.text || '',
+            title: {
+                text: full?.linksConfig?.title?.text || '',
+            },
         },
         links: (full?.links || []).map(l => ({ ...l })),
         notice: {
@@ -181,12 +188,19 @@ function buildEditorConfig(full) {
             text: full?.notice?.text || '',
         },
         footer: {
-            copyrightYear: full?.footer?.copyright?.year || '',
-            copyrightName: full?.footer?.copyright?.name || '',
+            copyright: {
+                year: full?.footer?.copyright?.year || '',
+                name: full?.footer?.copyright?.name || '',
+            },
         },
         analytics: {
-            gaEnabled: full?.analytics?.googleAnalytics?.enabled ?? false,
-            gaId: full?.analytics?.googleAnalytics?.id || '',
+            googleAnalytics: {
+                enabled: full?.analytics?.googleAnalytics?.enabled ?? false,
+                id: full?.analytics?.googleAnalytics?.id || '',
+            },
+        },
+        nav: {
+            enabled: full?.nav?.enabled ?? false,
         },
     };
 }
@@ -230,8 +244,8 @@ const CARD_DEFS = [
         title: '个人资料',
         fields: [
             { label: '显示名称', key: 'profile.name', type: 'text' },
-            { label: '个性签名前缀', key: 'profile.taglinePrefix', type: 'text', placeholder: '🐱' },
-            { label: '个性签名高亮', key: 'profile.taglineHighlight', type: 'text', placeholder: '欢迎来到我的主页' },
+            { label: '个性签名前缀', key: 'profile.tagline.prefix', type: 'text', placeholder: '🐱' },
+            { label: '个性签名高亮', key: 'profile.tagline.highlight', type: 'text', placeholder: '欢迎来到我的主页' },
         ],
         sections: [
             { label: '头像', itemsKey: '__avatar__', isAvatar: true },
@@ -262,14 +276,17 @@ const CARD_DEFS = [
             { label: '默认模式', key: 'theme.default', type: 'select', options: [
                 { v: 'auto', l: '跟随系统' }, { v: 'light', l: '浅色' }, { v: 'dark', l: '暗色' }
             ]},
-            { label: '浅色配色方案', key: 'theme.lightScheme', type: 'text', placeholder: 'coralOrange' },
-            { label: '暗色配色方案', key: 'theme.darkScheme', type: 'text', placeholder: 'catppuccinMocha' },
+            { label: '浅色配色方案', key: 'theme.defaultScheme.light', type: 'text', placeholder: 'coralOrange' },
+            { label: '暗色配色方案', key: 'theme.defaultScheme.dark', type: 'text', placeholder: 'catppuccinMocha' },
         ]
     },
     {
         id: 'links', icon: 'fa-link', color: '#00a1ff',
         title: '链接导航',
         toggle: { label: '启用链接模块', key: 'linksConfig.enabled', get: () => cfg.linksConfig?.enabled ?? true },
+        fields: [
+            { label: '模块标题', key: 'linksConfig.title.text', type: 'text', placeholder: '链接导航' },
+        ],
         sections: [
             { label: '链接列表', itemsKey: 'links', isLinks: true },
         ],
@@ -280,7 +297,7 @@ const CARD_DEFS = [
         title: 'GitHub 项目',
         fields: [
             { label: '启用项目展示', key: 'projects.enabled', type: 'toggle', get: () => cfg.projects?.enabled ?? true },
-            { label: '板块标题', key: 'projects.titleText', type: 'text', placeholder: '我的项目' },
+            { label: '板块标题', key: 'projects.title.text', type: 'text', placeholder: '我的项目' },
             { label: 'GitHub 用户名', key: 'projects.githubUser', type: 'text', placeholder: 'yourusername' },
             { label: '显示数量', key: 'projects.count', type: 'number', min: 1, max: 12 },
         ]
@@ -305,16 +322,16 @@ const CARD_DEFS = [
         id: 'footer', icon: 'fa-shoe-prints', color: '#5c7cfa',
         title: '页脚',
         fields: [
-            { label: '版权年份', key: 'footer.copyrightYear', type: 'text' },
-            { label: '版权名称', key: 'footer.copyrightName', type: 'text' },
+            { label: '版权年份', key: 'footer.copyright.year', type: 'text' },
+            { label: '版权名称', key: 'footer.copyright.name', type: 'text' },
         ]
     },
     {
         id: 'analytics', icon: 'fa-chart-line', color: '#e4a853',
         title: '统计分析',
         fields: [
-            { label: 'Google Analytics', key: 'analytics.gaEnabled', type: 'toggle', get: () => cfg.analytics?.gaEnabled ?? false },
-            { label: 'GA ID', key: 'analytics.gaId', type: 'text', placeholder: 'G-XXXXXXXXXX' },
+            { label: 'Google Analytics', key: 'analytics.googleAnalytics.enabled', type: 'toggle', get: () => cfg.analytics?.googleAnalytics?.enabled ?? false },
+            { label: 'GA ID', key: 'analytics.googleAnalytics.id', type: 'text', placeholder: 'G-XXXXXXXXXX' },
         ]
     },
 ];
