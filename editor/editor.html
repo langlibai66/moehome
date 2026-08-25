@@ -66,8 +66,28 @@
                     <i class="fa-solid fa-rotate-right"></i>
                 </button>
             </div>
-            <div class="preview-body">
-                <iframe id="preview-iframe" src="/" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+            <div class="preview-body" id="preview-body">
+                <div class="preview-placeholder" id="preview-placeholder">
+                    <div class="preview-placeholder-content">
+                        <i class="fa-solid fa-eye"></i>
+                        <p>点击「构建预览」查看效果</p>
+                        <p style="font-size:11px;color:var(--text3);margin-top:4px">预览将在新标签页中打开</p>
+                    </div>
+                </div>
+                <div class="preview-frame-wrap hidden" id="preview-frame-wrap">
+                    <div class="preview-url-bar">
+                        <span class="preview-url" id="preview-url"></span>
+                        <div class="preview-url-actions">
+                            <button class="btn-icon" id="btn-open-new-tab" title="在新标签页打开">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </button>
+                            <button class="btn-icon" id="btn-close-preview" title="关闭预览">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <iframe id="preview-iframe" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+                </div>
                 <pre id="config-source" class="hidden"><code id="config-code"></code></pre>
             </div>
         </section>

@@ -162,9 +162,9 @@ function buildConfigSource() {
     s = repl('highlight', cfg.profile?.taglineHighlight || '');
 
     // Identity
-    replaceArray(s, 'identity', cfg.identity || []);
-    replaceArray(s, 'interests', cfg.interests || []);
-    replaceArray(s, 'quotes', cfg.quotes || []);
+    s = replaceArray(s, 'identity', cfg.identity || []);
+    s = replaceArray(s, 'interests', cfg.interests || []);
+    s = replaceArray(s, 'quotes', cfg.quotes || []);
 
     // Terminal
     s = repl('title', cfg.terminal?.title || '');
@@ -191,7 +191,7 @@ function buildConfigSource() {
     // Links
     s = repl('enabled', cfg.linksConfig?.enabled ?? true);
     s = repl('text', cfg.linksConfig?.titleText || '');
-    rebuildLinks(s, cfg.links || []);
+    s = rebuildLinks(s, cfg.links || []);
 
     // Notice
     s = repl('enabled', cfg.notice?.enabled ?? false);
@@ -755,14 +755,23 @@ async function doBuild() {
         const res = await fetch('/api/build', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            showToast('构建完成，刷新预览', 'success');
-            $('preview-iframe').src = $('preview-iframe').src;
+            const previewUrl = `${window.location.origin}/`;
+            $('preview-url').textContent = previewUrl;
+            $('preview-placeholder').classList.add('hidden');
+            const wrap = $('preview-frame-wrap');
+            wrap.classList.remove('hidden');
+            $('preview-iframe').src = previewUrl;
+            showToast('构建完成', 'success');
         } else {
             showToast('构建失败', 'error');
         }
     } catch (e) {
         showToast('构建请求失败', 'error');
     }
+}
+
+function openPreviewInNewTab() {
+    window.open('/', '_blank');
 }
 
 async function doPublish() {
@@ -852,6 +861,22 @@ function setupEvents() {
     document.querySelectorAll('.preview-tab').forEach(tab => {
         tab.addEventListener('click', () => switchTab(tab.dataset.view));
     });
+
+    // Build preview button
+    $('btn-build').addEventListener('click', doBuild);
+
+    // Preview actions
+    const btnOpenNewTab = $('btn-open-new-tab');
+    if (btnOpenNewTab) btnOpenNewTab.addEventListener('click', openPreviewInNewTab);
+
+    const btnClosePreview = $('btn-close-preview');
+    if (btnClosePreview) {
+        btnClosePreview.addEventListener('click', () => {
+            $('preview-placeholder').classList.remove('hidden');
+            $('preview-frame-wrap').classList.add('hidden');
+            $('preview-iframe').src = 'about:blank';
+        });
+    }
 
     // Collapse/expand all
     $('btn-collapse-all').addEventListener('click', () => {

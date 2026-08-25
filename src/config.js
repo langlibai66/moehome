@@ -49,7 +49,7 @@ window.HOMEPAGE_CONFIG = {
 
   // ========== 主题配色 ==========
   theme: {
-    default: "auto",
+    default: "dark",
     defaultScheme: {
       light: null,
       dark: "catppuccinMocha",
