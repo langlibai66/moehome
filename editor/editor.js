@@ -1,194 +1,43 @@
 /**
- * MoeWah Editor — Visual Configuration Editor
- * 卡片式可视化编辑 + 实时预览 + 一键发布
+ * MoeWah Editor — Visual Configuration Editor v2
+ * 直接操作配置对象 + 完整变更链路
  */
 
 // ============================================================
-// STATE
+// CONFIG PARSER — 将 config.js 解析为结构化对象
 // ============================================================
-const state = {
-    rawConfig: '',          // config.js 原始内容
-    config: null,           // 解析后的配置对象
-    dirty: false,           // 是否有未保存的修改
-};
+function parseConfig(raw) {
+    const c = raw;
 
-// ============================================================
-// DOM REFS
-// ============================================================
-const $ = id => document.getElementById(id);
-const cardsContainer = $('cards-container');
-const previewIframe = $('preview-iframe');
-const configCode = $('config-code');
-const configSource = $('config-source');
-const saveStatus = $('save-status');
-const toastContainer = $('toast-container');
-
-// ============================================================
-// INIT
-// ============================================================
-async function init() {
-    await loadConfig();
-    setupEventListeners();
-}
-
-// ============================================================
-// CONFIG LOADING
-// ============================================================
-async function loadConfig() {
-    try {
-        const res = await fetch('/api/config');
-        const data = await res.json();
-        state.rawConfig = data.content;
-        state.config = parseConfig(data.content);
-        renderCards(state.config);
-        updateSourceView();
-        showToast('配置加载成功', 'success');
-    } catch (err) {
-        showToast('加载配置失败: ' + err.message, 'error');
+    function grab(pattern, fallback) {
+        const m = c.match(pattern);
+        return m && m[1] !== undefined ? m[1] : fallback;
     }
-}
 
-// ============================================================
-// CONFIG PARSER — 从 config.js 提取结构化数据
-// ============================================================
-function parseConfig(content) {
-    const c = content;
-    return {
-        site: extractObj(c, /site:\s*\{([\s\S]*?)\n\s*\},/, {
-            name: ['name:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            tagline: ['tagline:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            url: ['url:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            ogImage: ['ogImage:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        seo: extractObj(c, /seo:\s*\{([\s\S]*?)\n\s*\},/, {
-            title: ['title:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            description: ['description:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            keywords: extractArr(c, /keywords:\s*\[([\s\S]*?)\n\s*\]/),
-        }),
-        profile: extractObj(c, /profile:\s*\{([\s\S]*?)\n\s*\},/, {
-            name: ['name:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            taglinePrefix: extractNested(c, /profile:\s*\{[\s\S]*?tagline:\s*\{([\s\S]*?)\n\s*\}/, 'prefix'),
-            taglineHighlight: extractNested(c, /profile:\s*\{[\s\S]*?tagline:\s*\{([\s\S]*?)\n\s*\}/, 'highlight'),
-            avatar: ['avatar:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        identity: extractArr(c, /identity:\s*\[([\s\S]*?)\n\s*\]/),
-        interests: extractArr(c, /interests:\s*\[([\s\S]*?)\n\s*\]/),
-        terminal: extractObj(c, /terminal:\s*\{([\s\S]*?)\n\s*\},/, {
-            title: ['title:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        quotes: extractArr(c, /quotes:\s*\[([\s\S]*?)\n\s*\]/),
-        theme: extractObj(c, /theme:\s*\{([\s\S]*?)\n\s*\},/, {
-            defaultMode: ['default:\s*[\'"`](light|dark|auto)[\'"`]'],
-            lightScheme: ['light:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            darkScheme: ['dark:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        projects: extractObj(c, /projects:\s*\{([\s\S]*?)\n\s*\},\s*\n\s*\/\//, {
-            enabled: ['enabled:\s*(true|false)'],
-            titleText: ['text:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            titleIcon: ['icon:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            githubUser: ['githubUser:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            count: ['count:\s*(\d+)'],
-        }),
-        contribution: extractObj(c, /contribution:\s*\{([\s\S]*?)\n\s*\}/, {
-            enabled: ['enabled:\s*(true|false)'],
-            useRealData: ['useRealData:\s*(true|false)'],
-            githubUser: ['githubUser:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        rss: extractObj(c, /rss:\s*\{([\s\S]*?)\n\s*\},\s*\n\s*\/\//, {
-            enabled: ['enabled:\s*(true|false)'],
-            url: ['url:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            count: ['count:\s*(\d+)'],
-            titleText: ['text:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            titleIcon: ['icon:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            showDate: ['showDate:\s*(true|false)'],
-            showDescription: ['showDescription:\s*(true|false)'],
-        }),
-        linksConfig: extractObj(c, /linksConfig:\s*\{([\s\S]*?)\n\s*\},/, {
-            enabled: ['enabled:\s*(true|false)'],
-            titleText: ['text:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            titleIcon: ['icon:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        links: extractLinks(c),
-        music: extractObj(c, /music:\s*\{([\s\S]*?)(?=\n\s*\},?\s*\n\s*\/\/|\n\s*\},?\s*$)/, {
-            enabled: ['enabled:\s*(true|false)'],
-            volume: ['volume:\s*([0-9.]+)'],
-            mode: ['mode:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            metingServer: ['server:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            metingType: ['type:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            metingId: ['id:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        notice: extractObj(c, /notice:\s*\{([\s\S]*?)\n\s*\},/, {
-            enabled: ['enabled:\s*(true|false)'],
-            text: ['text:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        guestbook: extractObj(c, /guestbook:\s*\{([\s\S]*?)\n\s*\},/, {
-            enabled: ['enabled:\s*(true|false)'],
-        }),
-        donation: extractObj(c, /donation:\s*\{([\s\S]*?)\n\s*\},/, {
-            enabled: ['enabled:\s*(true|false)'],
-            titleText: ['text:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        footer: extractObj(c, /footer:\s*\{([\s\S]*?)\n\s*\},/, {
-            copyrightYear: ['year:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            copyrightName: ['name:\s*[\'"`]([^\'"`]+)[\'"`]'],
-        }),
-        analytics: extractObj(c, /analytics:\s*\{([\s\S]*?)\n\s*\}/, {
-            gaId: ['id:\s*[\'"`]([^\'"`]+)[\'"`]'],
-            gaEnabled: ['enabled:\s*(true|false)'],
-            umami: ["umami:\\s*'([^']+)'"],
-        }),
-    };
-}
-
-function extractObj(content, pattern, fields) {
-    const match = content.match(pattern);
-    if (!match) return {};
-    const block = match[1];
-    const result = {};
-    for (const [key, patterns] of Object.entries(fields)) {
-        if (Array.isArray(patterns)) {
-            for (const p of patterns) {
-                const m = block.match(new RegExp(p));
-                if (m) { result[key] = m[1]; break; }
-            }
-        }
+    function grabArr(pattern) {
+        const m = c.match(pattern);
+        if (!m) return [];
+        const items = [];
+        const re = /['"`]([^'"`]+)['"`]/g;
+        let x;
+        while ((x = re.exec(m[1]))) items.push(x[1]);
+        return items;
     }
-    return result;
-}
 
-function extractNested(content, pattern, key) {
-    const match = content.match(pattern);
-    if (!match) return '';
-    const keyMatch = match[1].match(new RegExp(key + ':\\s*[\'"`]([^\'"`]+)[\'"`]'));
-    return keyMatch ? keyMatch[1] : '';
-}
-
-function extractArr(content, pattern) {
-    const match = content.match(pattern);
-    if (!match) return [];
-    const items = [];
-    const re = /['"`]([^'"`]+)['"`]/g;
-    let m;
-    while ((m = re.exec(match[1]))) items.push(m[1]);
-    return items;
-}
-
-function extractLinks(content) {
-    const match = content.match(/links:\s*\[([\s\S]*?)\n\s*\]/);
-    if (!match) return [];
-    const links = [];
-    const objRe = /\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g;
-    let m;
-    while ((m = objRe.exec(match[1]))) {
-        const o = m[1];
-        const name = val(o, "name");
-        const url = val(o, "url");
-        if (name && url) {
+    function grabLinks() {
+        const m = c.match(/links:\s*\[([\s\S]*?)\n\s*\]/);
+        if (!m) return [];
+        const links = [];
+        const re = /\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g;
+        let x;
+        while ((x = re.exec(m[1]))) {
+            const o = x[1];
+            const name = val(o, 'name');
+            const url = val(o, 'url');
+            if (!name || !url) continue;
             links.push({
-                name,
-                description: val(o, 'description') || '',
-                url,
-                icon: val(o, 'icon') || 'fa-solid fa-link',
+                name, description: val(o, 'description') || '',
+                url, icon: val(o, 'icon') || 'fa-solid fa-link',
                 brand: val(o, 'brand') || 'link',
                 color: val(o, 'color') || '#00ff9f',
                 external: bool(o, 'external'),
@@ -196,728 +45,849 @@ function extractLinks(content) {
                 antiCrawler: bool(o, 'antiCrawler', true),
             });
         }
+        return links;
     }
-    return links;
-}
 
-function val(content, key) {
-    const patterns = [
-        new RegExp(key + ':\\s*"((?:[^"\\\\]|\\\\.)*)"'),
-        new RegExp(key + ":\\s*'((?:[^'\\\\]|\\\\.)*)'"),
-        new RegExp(key + ':\\s*`((?:[^`\\\\]|\\\\.)*)`'),
-    ];
-    for (const p of patterns) {
-        const m = content.match(p);
-        if (m) return m[1].replace(/\\(['"`\\])/g, '$1');
+    function val(o, k) {
+        const ps = [
+            new RegExp(k + ':\\s*"((?:[^"\\\\]|\\\\.)*)"'),
+            new RegExp(k + ":\\s*'((?:[^'\\\\]|\\\\.)*)'"),
+            new RegExp(k + ':\\s*`((?:[^`\\\\]|\\\\.)*)`'),
+        ];
+        for (const p of ps) { const m = o.match(p); if (m) return m[1].replace(/\\(['"`\\])/g, '$1'); }
+        return '';
     }
-    return null;
-}
 
-function bool(content, key, def = false) {
-    const m = content.match(new RegExp(key + ':\\s*(true|false)'));
-    return m ? m[1] === 'true' : def;
+    function bool(o, k, def) {
+        const m = o.match(new RegExp(k + ':\\s*(true|false)'));
+        return m ? m[1] === 'true' : !!def;
+    }
+
+    return {
+        site: {
+            name: grab(/name:\s*['"`]([^'"`]+)['"`]/),
+            tagline: grab(/tagline:\s*['"`]([^'"`]+)['"`]/),
+            url: grab(/url:\s*['"`]([^'"`]+)['"`]/),
+        },
+        profile: {
+            name: grab(/profile:[\s\S]*?name:\s*['"`]([^'"`]+)['"`]/),
+            taglinePrefix: grab(/tagline:\s*\{[\s\S]*?prefix:\s*['"`]([^'"`]+)['"`]/),
+            taglineHighlight: grab(/tagline:\s*\{[\s\S]*?highlight:\s*['"`]([^'"`]+)['"`]/),
+        },
+        identity: grabArr(/identity:\s*\[([\s\S]*?)\n\s*\]/),
+        interests: grabArr(/interests:\s*\[([\s\S]*?)\n\s*\]/),
+        terminal: {
+            title: grab(/terminal:[\s\S]*?title:\s*['"`]([^'"`]+)['"`]/),
+        },
+        quotes: grabArr(/quotes:\s*\[([\s\S]*?)\n\s*\]/),
+        theme: {
+            default: grab(/theme:[\s\S]*?default:\s*['"`](light|dark|auto)['"`]/),
+            lightScheme: grab(/theme:[\s\S]*?light:\s*['"`]([^'"`]+)['"`]/),
+            darkScheme: grab(/theme:[\s\S]*?dark:\s*['"`]([^'"`]+)['"`]/),
+        },
+        projects: {
+            enabled: bool(c.match(/projects:[\s\S]*?\}/)?.[1] || '', 'enabled'),
+            titleText: grab(/projects:[\s\S]*?text:\s*['"`]([^'"`]+)['"`]/),
+            githubUser: grab(/projects:[\s\S]*?githubUser:\s*['"`]([^'"`]+)['"`]/),
+            count: parseInt(grab(/projects:[\s\S]*?count:\s*(\d+)/)) || 6,
+        },
+        contribution: {
+            enabled: bool(c.match(/contribution:\s*\{[\s\S]*?\}/)?.[1] || '', 'enabled'),
+            useRealData: bool(c.match(/contribution:\s*\{[\s\S]*?\}/)?.[1] || '', 'useRealData'),
+        },
+        rss: {
+            enabled: bool(c.match(/rss:[\s\S]*?\},\s*\n\s*\/\//)?.[1] || '', 'enabled'),
+            url: grab(/rss:[\s\S]*?url:\s*['"`]([^'"`]+)['"`]/),
+        },
+        linksConfig: {
+            enabled: bool(c.match(/linksConfig:[\s\S]*?\}/)?.[1] || '', 'enabled'),
+            titleText: grab(/linksConfig:[\s\S]*?text:\s*['"`]([^'"`]+)['"`]/),
+        },
+        links: grabLinks(),
+        notice: {
+            enabled: bool(c.match(/notice:[\s\S]*?\}/)?.[1] || '', 'enabled'),
+            text: grab(/notice:[\s\S]*?text:\s*['"`]([^'"`]+)['"`]/),
+        },
+        footer: {
+            copyrightYear: grab(/footer:[\s\S]*?year:\s*['"`]([^'"`]+)['"`]/),
+            copyrightName: grab(/footer:[\s\S]*?name:\s*['"`]([^'"`]+)['"`]/),
+        },
+        analytics: {
+            gaEnabled: bool(c.match(/analytics:[\s\S]*?googleAnalytics:\s*\{[\s\S]*?\}/)?.[1] || '', 'enabled'),
+            gaId: grab(/id:\s*['"`](G-[^'"`]+)['"`]/),
+        },
+    };
 }
 
 // ============================================================
-// CARD RENDERING
+// STATE
 // ============================================================
-function renderCards(config) {
-    cardsContainer.innerHTML = '';
+let rawConfig = '';
+let cfg = {};
+let saveTimer = null;
 
-    const cards = [
-        { id: 'site', icon: 'fa-globe', iconBg: '#1a3a5c', title: '站点基础', badge: 'site', fields: () => cardFields([
-            textField('站点名称', config.site?.name, v => setConfig('site.name', v), { placeholder: '杨晨旭' }),
-            textField('站点标语', config.site?.tagline, v => setConfig('site.tagline', v), { placeholder: '开发者 / 技术爱好者' }),
-            textField('站点 URL', config.site?.url, v => setConfig('site.url', v), { placeholder: 'https://example.com' }),
-        ])},
-        { id: 'profile', icon: 'fa-user', iconBg: '#3a1a5c', title: '个人资料', badge: 'profile', fields: () => cardFields([
-            textField('显示名称', config.profile?.name, v => setConfig('profile.name', v)),
-            textField('个性签名前缀', config.profile?.taglinePrefix, v => setConfig('profile.taglinePrefix', v), { placeholder: '🐱' }),
-            textField('个性签名高亮', config.profile?.taglineHighlight, v => setConfig('profile.taglineHighlight', v), { placeholder: '欢迎来到我的主页' }),
-        ])},
-        { id: 'identity', icon: 'fa-fingerprint', iconBg: '#5c1a3a', title: '身份标签 & 兴趣', badge: 'identity', fields: () => {
-            const items = (config.identity || []).map((v, i) => arrayItem('identity', i, v));
-            const interestItems = (config.interests || []).map((v, i) => arrayItem('interests', i, v));
-            return cardFields([
-                arraySection('身份标签', config.identity || [], 'identity', items),
-                arraySection('兴趣领域', config.interests || [], 'interests', interestItems),
-            ]);
-        }},
-        { id: 'terminal', icon: 'fa-terminal', iconBg: '#1a4a3a', title: '终端 & 语录', badge: 'terminal', fields: () => cardFields([
-            textField('终端标题', config.terminal?.title, v => setConfig('terminal.title', v), { placeholder: '🐱 user@host:~|' }),
-            arraySection('名人语录', config.quotes || [], 'quotes', (config.quotes || []).map((v, i) => arrayItem('quotes', i, v))),
-        ])},
-        { id: 'theme', icon: 'fa-palette', iconBg: '#4a3a1a', title: '主题配色', badge: 'theme', fields: () => cardFields([
-            selectField('默认模式', config.theme?.defaultMode, v => setConfig('theme.defaultMode', v), [
-                { value: 'auto', label: '跟随系统' },
-                { value: 'light', label: '浅色' },
-                { value: 'dark', label: '暗色' },
-            ]),
-            textField('浅色配色', config.theme?.lightScheme, v => setConfig('theme.lightScheme', v), { placeholder: 'coralOrange' }),
-            textField('暗色配色', config.theme?.darkScheme, v => setConfig('theme.darkScheme', v), { placeholder: 'catppuccinMocha' }),
-        ])},
-        { id: 'links', icon: 'fa-link', iconBg: '#1a3a4a', title: '链接导航', badge: `${(config.links || []).length} links`, fields: () => {
-            const linkItems = (config.links || []).map((l, i) => linkItemCard(i, l));
-            return cardFields([
-                toggleField('启用链接模块', config.linksConfig?.enabled, v => setConfig('linksConfig.enabled', v)),
-                textField('模块标题', config.linksConfig?.titleText, v => setConfig('linksConfig.titleText', v)),
-                ...linkItems,
-                addLinkButton(),
-            ]);
-        }},
-        { id: 'projects', icon: 'fa-folder-open', iconBg: '#3a2a1a', title: 'GitHub 项目', badge: 'github', fields: () => cardFields([
-            toggleField('启用项目展示', config.projects?.enabled, v => setConfig('projects.enabled', v)),
-            textField('板块标题', config.projects?.titleText, v => setConfig('projects.titleText', v), { placeholder: '我的项目' }),
-            textField('GitHub 用户名', config.projects?.githubUser, v => setConfig('projects.githubUser', v), { placeholder: 'yourusername' }),
-            numberField('显示数量', config.projects?.count, v => setConfig('projects.count', v), { min: 1, max: 12 }),
-        ])},
-        { id: 'contribution', icon: 'fa-chart-bar', iconBg: '#2a1a3a', title: '贡献图', badge: 'github', fields: () => cardFields([
-            toggleField('启用贡献图', config.contribution?.enabled, v => setConfig('contribution.enabled', v)),
-            toggleField('使用真实数据', config.contribution?.useRealData, v => setConfig('contribution.useRealData', v)),
-            textField('GitHub 用户名', config.contribution?.githubUser, v => setConfig('contribution.githubUser', v)),
-        ])},
-        { id: 'notice', icon: 'fa-shield-halved', iconBg: '#3a1a1a', title: '安全提示', badge: 'notice', fields: () => cardFields([
-            toggleField('启用提示', config.notice?.enabled, v => setConfig('notice.enabled', v)),
-            textField('提示内容', config.notice?.text, v => setConfig('notice.text', v)),
-        ])},
-        { id: 'footer', icon: 'fa-shoe-prints', iconBg: '#1a2a2a', title: '页脚', badge: 'footer', fields: () => cardFields([
-            textField('版权年份', config.footer?.copyrightYear, v => setConfig('footer.copyrightYear', v)),
-            textField('版权名称', config.footer?.copyrightName, v => setConfig('footer.copyrightName', v)),
-        ])},
-        { id: 'analytics', icon: 'fa-chart-line', iconBg: '#2a2a1a', title: '统计分析', badge: 'stats', fields: () => cardFields([
-            toggleField('Google Analytics', config.analytics?.gaEnabled, v => setConfig('analytics.gaEnabled', v)),
-            textField('GA ID', config.analytics?.gaId, v => setConfig('analytics.gaId', v), { placeholder: 'G-XXXXXXXXXX' }),
-            textField('Umami 脚本', config.analytics?.umami, v => setConfig('analytics.umami', v), { placeholder: "src='...'", monospace: true }),
-        ])},
-    ];
+const $ = id => document.getElementById(id);
 
-    cards.forEach(card => {
-        cardsContainer.appendChild(createCardElement(card));
+// ============================================================
+// CONFIG WRITER — 将结构化数据写回 config.js
+// ============================================================
+function buildConfigSource() {
+    let s = rawConfig;
+
+    function repl(key, val) {
+        const patterns = [
+            new RegExp(key + ':\\s*["`]([^"`]*)["`]'),
+            new RegExp(key + ":\\s*'([^']*)'"),
+            new RegExp(key + ':\\s*(true|false)'),
+            new RegExp(key + ':\\s*(\\d+(?:\\.\\d+)?)'),
+        ];
+        for (const p of patterns) {
+            if (p.test(s)) {
+                if (typeof val === 'boolean') return s.replace(p, key + ': ' + val);
+                if (typeof val === 'number') return s.replace(p, key + ': ' + val);
+                return s.replace(p, key + ': "' + String(val).replace(/"/g, '\\"') + '"');
+            }
+        }
+        return s;
+    }
+
+    // Site
+    s = repl('name', cfg.site?.name || '');
+    s = repl('tagline', cfg.site?.tagline || '');
+    s = repl('url', cfg.site?.url || '');
+
+    // Profile
+    s = repl('name', cfg.profile?.name || '');
+    s = repl('prefix', cfg.profile?.taglinePrefix || '');
+    s = repl('highlight', cfg.profile?.taglineHighlight || '');
+
+    // Identity
+    replaceArray(s, 'identity', cfg.identity || []);
+    replaceArray(s, 'interests', cfg.interests || []);
+    replaceArray(s, 'quotes', cfg.quotes || []);
+
+    // Terminal
+    s = repl('title', cfg.terminal?.title || '');
+
+    // Theme
+    s = repl('default', cfg.theme?.default || 'auto');
+    s = repl('light', cfg.theme?.lightScheme || '');
+    s = repl('dark', cfg.theme?.darkScheme || '');
+
+    // Projects
+    s = repl('enabled', cfg.projects?.enabled ?? true);
+    s = repl('text', cfg.projects?.titleText || '');
+    s = repl('githubUser', cfg.projects?.githubUser || '');
+    s = repl('count', cfg.projects?.count || 6);
+
+    // Contribution
+    s = repl('enabled', cfg.contribution?.enabled ?? true);
+    s = repl('useRealData', cfg.contribution?.useRealData ?? true);
+
+    // RSS
+    s = repl('enabled', cfg.rss?.enabled ?? false);
+    s = repl('url', cfg.rss?.url || '');
+
+    // Links
+    s = repl('enabled', cfg.linksConfig?.enabled ?? true);
+    s = repl('text', cfg.linksConfig?.titleText || '');
+    rebuildLinks(s, cfg.links || []);
+
+    // Notice
+    s = repl('enabled', cfg.notice?.enabled ?? false);
+    s = repl('text', cfg.notice?.text || '');
+
+    // Footer
+    s = repl('year', cfg.footer?.copyrightYear || '');
+    s = repl('name', cfg.footer?.copyrightName || '');
+
+    return s;
+}
+
+function replaceArray(source, key, items) {
+    const pattern = new RegExp(key + ':\\s*\\[[\\s\\S]*?\\n\\s*\\]');
+    const arrStr = items.map(v => `        "${v.replace(/"/g, '\\"')}"`).join(',\n');
+    const replacement = key + ': [\n' + arrStr + '\n    ]';
+    return source.replace(pattern, replacement);
+}
+
+function rebuildLinks(source, links) {
+    const pattern = /links:\s*\[[\s\S]*?\n\s*\]/;
+    let linksStr = 'links: [\n';
+    links.forEach((l, i) => {
+        linksStr += '        {\n';
+        linksStr += `            name: "${l.name.replace(/"/g, '\\"')}",\n`;
+        linksStr += `            description: "${(l.description || '').replace(/"/g, '\\"')}",\n`;
+        linksStr += `            url: "${l.url.replace(/"/g, '\\"')}",\n`;
+        linksStr += `            icon: "${l.icon.replace(/"/g, '\\"')}",\n`;
+        linksStr += `            brand: "${l.brand.replace(/"/g, '\\"')}",\n`;
+        linksStr += `            color: "${l.color || '#00ff9f'}",\n`;
+        linksStr += `            external: ${l.external},\n`;
+        linksStr += `            enabled: ${l.enabled},\n`;
+        linksStr += `            antiCrawler: ${l.antiCrawler},\n`;
+        linksStr += '        }';
+        if (i < links.length - 1) linksStr += ',';
+        linksStr += '\n';
     });
-}
-
-function createCardElement(card) {
-    const el = document.createElement('div');
-    el.className = 'config-card';
-    el.dataset.cardId = card.id;
-    el.innerHTML = `
-        <div class="card-header" data-toggle="${card.id}">
-            <div class="card-header-left">
-                <div class="card-icon" style="background:${card.iconBg}22;color:${card.iconBg}">
-                    <i class="fa-solid ${card.icon}"></i>
-                </div>
-                <span class="card-title">${card.title}</span>
-                <span class="card-badge">${card.badge}</span>
-            </div>
-            <i class="fa-solid fa-chevron-down card-toggle"></i>
-        </div>
-        <div class="card-body">${card.fields().join('')}</div>
-    `;
-
-    // Toggle collapse
-    el.querySelector('.card-header').addEventListener('click', () => {
-        el.classList.toggle('collapsed');
-    });
-
-    return el;
+    linksStr += '    ]';
+    return source.replace(pattern, linksStr);
 }
 
 // ============================================================
-// FIELD BUILDERS
+// INIT
 // ============================================================
-function cardFields(fields) { return fields; }
-
-function textField(label, value, onChange, opts = {}) {
-    const v = value || '';
-    return `
-        <div class="field-group">
-            <label class="field-label">${label}</label>
-            <input type="text" value="${escAttr(v)}" placeholder="${escAttr(opts.placeholder || '')}" data-path="${opts.path || ''}" data-onchange="${opts.path || ''}" ${opts.monospace ? 'style="font-family:var(--font-mono);font-size:12px;"' : ''}>
-        </div>`;
-}
-
-function numberField(label, value, onChange, opts = {}) {
-    const v = value || '';
-    return `
-        <div class="field-group">
-            <label class="field-label">${label}</label>
-            <input type="number" value="${v}" ${opts.min ? 'min="'+opts.min+'"' : ''} ${opts.max ? 'max="'+opts.max+'"' : ''}>
-        </div>`;
-}
-
-function selectField(label, value, onChange, options) {
-    const opts = options.map(o =>
-        `<option value="${o.value}" ${o.value === value ? 'selected' : ''}>${o.label}</option>`
-    ).join('');
-    return `
-        <div class="field-group">
-            <label class="field-label">${label}</label>
-            <select><option value="">-- 选择 --</option>${opts}</select>
-        </div>`;
-}
-
-function toggleField(label, value, onChange) {
-    const active = value ? 'active' : '';
-    return `
-        <div class="field-group">
-            <div class="toggle-wrap">
-                <div class="toggle ${active}" data-toggle-field></div>
-                <span class="toggle-label">${label}</span>
-            </div>
-        </div>`;
-}
-
-function arraySection(title, items, path, itemEls) {
-    return `
-        <div class="field-group">
-            <label class="field-label">${title} (${items.length})</label>
-            <div class="array-list" data-array-path="${path}">
-                ${itemEls.join('')}
-            </div>
-        </div>`;
-}
-
-function arrayItem(path, index, value) {
-    return `
-        <div class="array-item" data-array-index="${index}" data-array-path="${path}">
-            <span style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono);min-width:20px">${index}</span>
-            <input type="text" value="${escAttr(value || '')}" data-array-value="${index}">
-            <button class="btn-icon danger" data-array-remove="${index}" title="删除">
-                <i class="fa-solid fa-trash-can"></i>
-            </button>
-        </div>`;
-}
-
-function linkItemCard(index, link) {
-    return `
-        <div class="link-card-item" data-link-index="${index}">
-            <div class="link-card-item-header">
-                <span><i class="${link.icon}" style="margin-right:6px;color:${link.color}"></i>${esc(link.name)}</span>
-                <button class="btn-icon danger" data-link-remove="${index}" title="删除链接">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
-            </div>
-            <div class="link-card-fields">
-                <div class="field-group">
-                    <label class="field-label">名称</label>
-                    <input type="text" value="${escAttr(link.name || '')}" data-link-field="${index}:name">
-                </div>
-                <div class="field-group">
-                    <label class="field-label">图标 (FontAwesome class)</label>
-                    <input type="text" value="${escAttr(link.icon || '')}" data-link-field="${index}:icon">
-                </div>
-                <div class="field-group full-width">
-                    <label class="field-label">URL</label>
-                    <input type="text" value="${escAttr(link.url || '')}" data-link-field="${index}:url">
-                </div>
-                <div class="field-group">
-                    <label class="field-label">描述</label>
-                    <input type="text" value="${escAttr(link.description || '')}" data-link-field="${index}:description">
-                </div>
-                <div class="field-group">
-                    <label class="field-label">品牌颜色</label>
-                    <div class="color-input-wrap">
-                        <input type="color" value="${link.color || '#00ff9f'}" data-link-field="${index}:color">
-                        <input type="text" value="${escAttr(link.color || '#00ff9f')}" data-link-field="${index}:color-text">
-                    </div>
-                </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
-                <div class="toggle-wrap">
-                    <div class="toggle ${link.enabled !== false ? 'active' : ''}" data-link-toggle="${index}"></div>
-                    <span class="toggle-label">启用</span>
-                </div>
-                <div class="toggle-wrap">
-                    <div class="toggle ${link.antiCrawler ? 'active' : ''}" data-link-anticrawler="${index}"></div>
-                    <span class="toggle-label">邮箱反爬</span>
-                </div>
-            </div>
-        </div>`;
-}
-
-function addLinkButton() {
-    return `
-        <button class="btn-add" id="btn-add-link">
-            <i class="fa-solid fa-plus"></i> 添加链接
-        </button>`;
+async function init() {
+    try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        rawConfig = data.content;
+        cfg = parseConfig(rawConfig);
+        renderCards();
+        showStatus('ready');
+    } catch (e) {
+        showToast('加载配置失败: ' + e.message, 'error');
+    }
 }
 
 // ============================================================
-// CONFIG UPDATE & WRITE
+// CARD DEFINITIONS — 声明式卡片列表
 // ============================================================
-function setConfig(path, value) {
-    const parts = path.split('.');
-    let obj = state.config;
+const CARD_DEFS = [
+    {
+        id: 'site', icon: 'fa-globe', color: '#4a9eff',
+        title: '站点基础', fields: [
+            { label: '站点名称', key: 'site.name', type: 'text', placeholder: '杨晨旭' },
+            { label: '站点标语', key: 'site.tagline', type: 'text', placeholder: '开发者 / 技术爱好者' },
+            { label: '站点 URL', key: 'site.url', type: 'text', placeholder: 'https://example.com' },
+        ]
+    },
+    {
+        id: 'profile', icon: 'fa-user', color: '#b066ff',
+        title: '个人资料', fields: [
+            { label: '显示名称', key: 'profile.name', type: 'text' },
+            { label: '个性签名前缀', key: 'profile.taglinePrefix', type: 'text', placeholder: '🐱' },
+            { label: '个性签名高亮', key: 'profile.taglineHighlight', type: 'text', placeholder: '欢迎来到我的主页' },
+        ]
+    },
+    {
+        id: 'identity', icon: 'fa-fingerprint', color: '#ff4d6a',
+        title: '身份标签 & 兴趣', sections: [
+            { label: '身份标签', itemsKey: 'identity' },
+            { label: '兴趣领域', itemsKey: 'interests' },
+        ]
+    },
+    {
+        id: 'terminal', icon: 'fa-terminal', color: '#27c93f',
+        title: '终端 & 语录', fields: [
+            { label: '终端标题', key: 'terminal.title', type: 'text', placeholder: '🐱 user@host:~|' },
+        ],
+        sections: [
+            { label: '名人语录', itemsKey: 'quotes' },
+        ]
+    },
+    {
+        id: 'theme', icon: 'fa-palette', color: '#ff9500',
+        title: '主题配色', fields: [
+            { label: '默认模式', key: 'theme.default', type: 'select', options: [
+                { v: 'auto', l: '跟随系统' }, { v: 'light', l: '浅色' }, { v: 'dark', l: '暗色' }
+            ]},
+            { label: '浅色配色方案', key: 'theme.lightScheme', type: 'text', placeholder: 'coralOrange' },
+            { label: '暗色配色方案', key: 'theme.darkScheme', type: 'text', placeholder: 'catppuccinMocha' },
+        ]
+    },
+    {
+        id: 'links', icon: 'fa-link', color: '#00a1ff',
+        title: '链接导航',
+        toggle: { label: '启用链接模块', key: 'linksConfig.enabled', get: () => cfg.linksConfig?.enabled ?? true },
+        extraTitle: () => `${(cfg.links || []).length} 条`,
+        sections: [
+            { label: '链接列表', itemsKey: 'links', isLinks: true },
+        ],
+        addButton: { label: '添加链接', action: 'addLink' },
+    },
+    {
+        id: 'projects', icon: 'fa-folder-open', color: '#ff9500',
+        title: 'GitHub 项目', fields: [
+            { label: '启用项目展示', key: 'projects.enabled', type: 'toggle', get: () => cfg.projects?.enabled ?? true },
+            { label: '板块标题', key: 'projects.titleText', type: 'text', placeholder: '我的项目' },
+            { label: 'GitHub 用户名', key: 'projects.githubUser', type: 'text', placeholder: 'yourusername' },
+            { label: '显示数量', key: 'projects.count', type: 'number', min: 1, max: 12 },
+        ]
+    },
+    {
+        id: 'contribution', icon: 'fa-chart-bar', color: '#9b59b6',
+        title: '贡献图', fields: [
+            { label: '启用贡献图', key: 'contribution.enabled', type: 'toggle', get: () => cfg.contribution?.enabled ?? true },
+            { label: '使用真实数据', key: 'contribution.useRealData', type: 'toggle', get: () => cfg.contribution?.useRealData ?? true },
+        ]
+    },
+    {
+        id: 'notice', icon: 'fa-shield-halved', color: '#ff3b3b',
+        title: '安全提示', fields: [
+            { label: '启用提示', key: 'notice.enabled', type: 'toggle', get: () => cfg.notice?.enabled ?? false },
+            { label: '提示内容', key: 'notice.text', type: 'text', placeholder: '输入提示内容...' },
+        ]
+    },
+    {
+        id: 'footer', icon: 'fa-shoe-prints', color: '#5c7cfa',
+        title: '页脚', fields: [
+            { label: '版权年份', key: 'footer.copyrightYear', type: 'text' },
+            { label: '版权名称', key: 'footer.copyrightName', type: 'text' },
+        ]
+    },
+    {
+        id: 'analytics', icon: 'fa-chart-line', color: '#e4a853',
+        title: '统计分析', fields: [
+            { label: 'Google Analytics', key: 'analytics.gaEnabled', type: 'toggle', get: () => cfg.analytics?.gaEnabled ?? false },
+            { label: 'GA ID', key: 'analytics.gaId', type: 'text', placeholder: 'G-XXXXXXXXXX' },
+        ]
+    },
+];
+
+// ============================================================
+// VALUE HELPERS — 从嵌套对象取值/设值
+// ============================================================
+function getVal(keyPath) {
+    const parts = keyPath.split('.');
+    let obj = cfg;
+    for (const p of parts) { obj = obj?.[p]; }
+    return obj ?? '';
+}
+
+function setVal(keyPath, value) {
+    const parts = keyPath.split('.');
+    let obj = cfg;
     for (let i = 0; i < parts.length - 1; i++) {
         if (!obj[parts[i]]) obj[parts[i]] = {};
         obj = obj[parts[i]];
     }
     obj[parts[parts.length - 1]] = value;
-    state.dirty = true;
-    updateSourceView();
-    flashSaveStatus('saving');
     debouncedSave();
 }
 
-function updateConfigFromDOM() {
-    // Read all inputs and update state.config
-    const cards = cardsContainer.querySelectorAll('.config-card');
-    cards.forEach(card => {
-        // Text inputs
-        card.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
-            if (input.dataset.onchange) {
-                setConfig(input.dataset.onchange, input.value);
+// ============================================================
+// RENDER CARDS
+// ============================================================
+function renderCards() {
+    const container = $('cards-container');
+    container.innerHTML = '';
+
+    for (const def of CARD_DEFS) {
+        container.appendChild(createCard(def));
+    }
+}
+
+function createCard(def) {
+    const el = document.createElement('div');
+    el.className = 'config-card';
+    el.dataset.id = def.id;
+
+    const badge = def.extraTitle ? def.extraTitle() :
+                  (def.sections?.some(s => s.isLinks) ? `${(cfg.links || []).length} 条` :
+                   def.id);
+
+    let bodyHTML = '';
+
+    // Toggle field (standalone)
+    if (def.toggle) {
+        const val = def.toggle.get ? def.toggle.get() : getVal(def.toggle.key);
+        bodyHTML += toggleHTML(def.toggle.label, def.toggle.key, val);
+    }
+
+    // Regular fields
+    if (def.fields) {
+        for (const f of def.fields) {
+            if (f.type === 'toggle') {
+                const val = f.get ? f.get() : getVal(f.key);
+                bodyHTML += toggleHTML(f.label, f.key, val);
+            } else if (f.type === 'select') {
+                bodyHTML += selectHTML(f.label, f.key, getVal(f.key), f.options);
+            } else if (f.type === 'number') {
+                bodyHTML += numberHTML(f.label, f.key, getVal(f.key), f);
+            } else {
+                bodyHTML += textHTML(f.label, f.key, getVal(f.key), f);
             }
-            if (input.dataset.arrayValue !== undefined) {
-                const path = input.closest('[data-array-path]')?.dataset.arrayPath;
-                const idx = parseInt(input.dataset.arrayValue);
-                if (path && state.config[path]) {
-                    state.config[path][idx] = input.value;
-                    state.dirty = true;
-                }
-            }
-            if (input.dataset.linkField) {
-                const [idx, field] = input.dataset.linkField.split(':');
-                const link = state.config.links && state.config.links[parseInt(idx)];
-                if (link) { link[field] = input.value; state.dirty = true; }
-            }
+        }
+    }
+
+    // Array sections (identity, interests, quotes, links)
+    if (def.sections) {
+        for (const sec of def.sections) {
+            bodyHTML += arraySectionHTML(sec, def.id);
+        }
+    }
+
+    // Add button
+    if (def.addButton) {
+        bodyHTML += addButtonHTML(def.addButton);
+    }
+
+    el.innerHTML = `
+        <div class="card-header" data-toggle="${def.id}">
+            <div class="card-header-left">
+                <div class="card-icon" style="background:${def.color}18;color:${def.color}">
+                    <i class="fa-solid ${def.icon}"></i>
+                </div>
+                <span class="card-title">${def.title}</span>
+                <span class="card-badge">${badge}</span>
+            </div>
+            <i class="fa-solid fa-chevron-down card-toggle"></i>
+        </div>
+        <div class="card-body">${bodyHTML}</div>
+    `;
+
+    // Bind card toggle
+    el.querySelector('.card-header').addEventListener('click', () => {
+        el.classList.toggle('collapsed');
+    });
+
+    // Bind all input events
+    bindCardEvents(el, def);
+
+    return el;
+}
+
+// ============================================================
+// FIELD HTML BUILDERS
+// ============================================================
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function textHTML(label, key, value, opts) {
+    return `<div class="field-group">
+        <label class="field-label">${esc(label)}</label>
+        <input type="text" data-key="${key}" value="${esc(value)}" placeholder="${esc(opts?.placeholder || '')}" ${opts?.mono ? 'style="font-family:var(--font-mono);font-size:12px"' : ''}>
+    </div>`;
+}
+
+function numberHTML(label, key, value, opts) {
+    return `<div class="field-group">
+        <label class="field-label">${esc(label)}</label>
+        <input type="number" data-key="${key}" value="${value}" ${opts.min ? 'min="'+opts.min+'"' : ''} ${opts.max ? 'max="'+opts.max+'"' : ''}>
+    </div>`;
+}
+
+function selectHTML(label, key, value, options) {
+    const opts = options.map(o =>
+        `<option value="${o.v}" ${o.v === value ? 'selected' : ''}>${o.l}</option>`
+    ).join('');
+    return `<div class="field-group">
+        <label class="field-label">${esc(label)}</label>
+        <select data-key="${key}"><option value="">-- 选择 --</option>${opts}</select>
+    </div>`;
+}
+
+function toggleHTML(label, key, value) {
+    return `<div class="field-group">
+        <div class="toggle-wrap">
+            <div class="toggle ${value ? 'active' : ''}" data-key="${key}" data-toggle></div>
+            <span class="toggle-label">${esc(label)}</span>
+        </div>
+    </div>`;
+}
+
+function arraySectionHTML(sec, cardId) {
+    const itemsKey = sec.itemsKey;
+    const items = cfg[itemsKey] || [];
+
+    let itemsHTML = '';
+    if (sec.isLinks) {
+        // Special rendering for links
+        items.forEach((link, i) => {
+            itemsHTML += linkItemHTML(i, link);
         });
-        // Selects
-        card.querySelectorAll('select').forEach(sel => {
-            const cardEl = card.closest('.config-card');
-            const pathMap = { 'site': 'site', 'profile': 'profile', 'theme': 'theme' };
-            const cardId = cardEl?.dataset.cardId;
-            if (cardId === 'theme') {
-                const key = sel.closest('.field-group')?.querySelector('.field-label')?.textContent;
-                if (key === '默认模式') setConfig('theme.defaultMode', sel.value);
-            }
+    } else {
+        items.forEach((val, i) => {
+            itemsHTML += `<div class="array-item">
+                <span class="array-idx">${i}</span>
+                <input type="text" data-array="${itemsKey}" data-idx="${i}" value="${esc(val)}">
+                <button class="btn-icon btn-icon-danger" data-remove="${itemsKey}:${i}" title="删除">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>`;
         });
-        // Toggles
-        card.querySelectorAll('[data-toggle-field]').forEach(toggle => {
-            const label = toggle.closest('.field-group')?.querySelector('.toggle-label')?.textContent || '';
-            const pathMap = {
-                '启用项目展示': 'projects.enabled',
-                '启用贡献图': 'contribution.enabled',
-                '使用真实数据': 'contribution.useRealData',
-                '启用提示': 'notice.enabled',
-                '启用链接模块': 'linksConfig.enabled',
-                'Google Analytics': 'analytics.gaEnabled',
-            };
-            const path = pathMap[label];
-            if (path) setConfig(path, toggle.classList.contains('active'));
+    }
+
+    return `<div class="field-group">
+        <label class="field-label">${esc(sec.label)} (${items.length})</label>
+        <div class="array-list" data-array-key="${itemsKey}">${itemsHTML}</div>
+    </div>`;
+}
+
+function linkItemHTML(index, link) {
+    return `<div class="link-card" data-link-idx="${index}">
+        <div class="link-card-header">
+            <span class="link-card-title">
+                <i class="${link.icon || 'fa-solid fa-link'}" style="color:${link.color || '#00ff9f'};margin-right:6px"></i>
+                ${esc(link.name || '未命名')}
+            </span>
+            <button class="btn-icon btn-icon-danger" data-remove-link="${index}" title="删除链接">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </div>
+        <div class="link-card-grid">
+            <div class="field-group">
+                <label class="field-label">名称</label>
+                <input type="text" data-link="${index}:name" value="${esc(link.name || '')}">
+            </div>
+            <div class="field-group">
+                <label class="field-label">图标 (FontAwesome)</label>
+                <input type="text" data-link="${index}:icon" value="${esc(link.icon || '')}" placeholder="fa-solid fa-link">
+            </div>
+            <div class="field-group" style="grid-column:1/-1">
+                <label class="field-label">URL</label>
+                <input type="text" data-link="${index}:url" value="${esc(link.url || '')}" placeholder="https://...">
+            </div>
+            <div class="field-group">
+                <label class="field-label">描述</label>
+                <input type="text" data-link="${index}:description" value="${esc(link.description || '')}">
+            </div>
+            <div class="field-group">
+                <label class="field-label">颜色</label>
+                <div class="color-wrap">
+                    <input type="color" data-link-color="${index}" value="${link.color || '#00ff9f'}">
+                    <input type="text" data-link="${index}:color" value="${esc(link.color || '#00ff9f')}">
+                </div>
+            </div>
+        </div>
+        <div class="link-card-toggles">
+            <div class="toggle-wrap">
+                <div class="toggle ${link.enabled !== false ? 'active' : ''}" data-link-toggle="${index}:enabled"></div>
+                <span class="toggle-label">启用</span>
+            </div>
+            <div class="toggle-wrap">
+                <div class="toggle ${link.antiCrawler ? 'active' : ''}" data-link-toggle="${index}:antiCrawler"></div>
+                <span class="toggle-label">邮箱反爬</span>
+            </div>
+        </div>
+    </div>`;
+}
+
+function addButtonHTML(opts) {
+    return `<button class="btn-add" id="btn-add-link"><i class="fa-solid fa-plus"></i> ${esc(opts.label)}</button>`;
+}
+
+// ============================================================
+// EVENT BINDING
+// ============================================================
+function bindCardEvents(cardEl, def) {
+    // Text / number inputs
+    cardEl.querySelectorAll('input[data-key]').forEach(input => {
+        input.addEventListener('input', () => {
+            setVal(input.dataset.key, input.value);
         });
-        // Link toggles
-        card.querySelectorAll('[data-link-toggle]').forEach(toggle => {
-            const idx = parseInt(toggle.dataset.linkToggle);
-            if (state.config.links && state.config.links[idx]) {
-                state.config.links[idx].enabled = toggle.classList.contains('active');
-                state.dirty = true;
-            }
+    });
+
+    // Select
+    cardEl.querySelectorAll('select[data-key]').forEach(sel => {
+        sel.addEventListener('change', () => {
+            setVal(sel.dataset.key, sel.value);
         });
-        card.querySelectorAll('[data-link-anticrawler]').forEach(toggle => {
-            const idx = parseInt(toggle.dataset.anticrawler);
-            if (state.config.links && state.config.links[idx]) {
-                state.config.links[idx].antiCrawler = toggle.classList.contains('active');
-                state.dirty = true;
+    });
+
+    // Toggles
+    cardEl.querySelectorAll('[data-toggle]').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            toggle.classList.toggle('active');
+            setVal(toggle.dataset.key, toggle.classList.contains('active'));
+        });
+    });
+
+    // Array item inputs
+    cardEl.querySelectorAll('input[data-array]').forEach(input => {
+        input.addEventListener('input', () => {
+            const key = input.dataset.array;
+            const idx = parseInt(input.dataset.idx);
+            if (cfg[key]) {
+                cfg[key][idx] = input.value;
+                debouncedSave();
             }
         });
     });
-}
 
-// ============================================================
-// CONFIG WRITER — 将修改写回 config.js
-// ============================================================
-function writeConfigToFile() {
-    let content = state.rawConfig;
-
-    // Helper: replace value for a key in config
-    function replaceValue(key, newValue, scope = null) {
-        const patterns = [
-            // String: key: "value" or key: 'value'
-            new RegExp(key + ':\\s*["`]([^"`]*)["`]'),
-            new RegExp(key + ':\\s*\'([^\']*)\''),
-            // Boolean: key: true/false
-            new RegExp(key + ':\\s*(true|false)'),
-            // Number: key: 123
-            new RegExp(key + ':\\s*(\\d+(?:\\.\\d+)?)'),
-        ];
-
-        for (const pattern of patterns) {
-            if (pattern.test(content)) {
-                if (typeof newValue === 'boolean') {
-                    content = content.replace(pattern, key + ': ' + newValue);
-                } else if (typeof newValue === 'number') {
-                    content = content.replace(pattern, key + ': ' + newValue);
-                } else {
-                    content = content.replace(pattern, key + ': "' + newValue.replace(/"/g, '\\"') + '"');
-                }
-                return true;
+    // Array remove
+    cardEl.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const [key, idx] = btn.dataset.remove.split(':');
+            if (cfg[key]) {
+                cfg[key].splice(parseInt(idx), 1);
+                renderCards();
+                debouncedSave();
             }
-        }
-        return false;
-    }
+        });
+    });
 
-    // Apply config changes
-    for (const [key, value] of Object.entries(flattenConfig(state.config))) {
-        if (value !== null && value !== undefined) {
-            replaceValue(key, value);
-        }
-    }
+    // Link field inputs
+    cardEl.querySelectorAll('input[data-link]').forEach(input => {
+        input.addEventListener('input', () => {
+            const [idx, field] = input.dataset.link.split(':');
+            const link = cfg.links && cfg.links[parseInt(idx)];
+            if (link) {
+                link[field] = input.value;
+                debouncedSave();
+            }
+        });
+    });
 
-    state.rawConfig = content;
-    return content;
+    // Link color sync
+    cardEl.querySelectorAll('input[data-link-color]').forEach(picker => {
+        picker.addEventListener('input', () => {
+            const idx = parseInt(picker.dataset.linkColor);
+            const textInput = cardEl.querySelector(`input[data-link="${idx}:color"]`);
+            if (textInput) textInput.value = picker.value;
+            if (cfg.links && cfg.links[idx]) {
+                cfg.links[idx].color = picker.value;
+                debouncedSave();
+            }
+        });
+    });
+
+    // Link toggle
+    cardEl.querySelectorAll('[data-link-toggle]').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            toggle.classList.toggle('active');
+            const [idx, field] = toggle.dataset.linkToggle.split(':');
+            if (cfg.links && cfg.links[parseInt(idx)]) {
+                cfg.links[parseInt(idx)][field] = toggle.classList.contains('active');
+                debouncedSave();
+            }
+        });
+    });
+
+    // Link remove
+    cardEl.querySelectorAll('[data-remove-link]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.removeLink);
+            if (cfg.links) {
+                cfg.links.splice(idx, 1);
+                renderCards();
+                debouncedSave();
+            }
+        });
+    });
+
+    // Add link button
+    const addBtn = cardEl.querySelector('#btn-add-link');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            if (!cfg.links) cfg.links = [];
+            cfg.links.push({
+                name: '新链接', description: '描述', url: 'https://',
+                icon: 'fa-solid fa-link', brand: 'link', color: '#00ff9f',
+                external: true, enabled: true, antiCrawler: false,
+            });
+            renderCards();
+            debouncedSave();
+        });
+    }
 }
 
-function flattenConfig(obj, prefix = '') {
-    const result = {};
-    for (const [key, value] of Object.entries(obj)) {
-        const path = prefix ? prefix + '.' + key : key;
-        if (value && typeof value === 'object' && !Array.isArray(value) && typeof value !== 'function') {
-            Object.assign(result, flattenConfig(value, path));
-        } else if (Array.isArray(value)) {
-            // Arrays handled separately
-        } else {
-            result[path] = value;
-        }
-    }
-    return result;
+// ============================================================
+// SAVE
+// ============================================================
+function debouncedSave() {
+    clearTimeout(saveTimer);
+    showStatus('saving');
+    saveTimer = setTimeout(saveConfig, 600);
 }
 
 async function saveConfig() {
-    updateConfigFromDOM();
-    writeConfigToFile();
-
     try {
+        rawConfig = buildConfigSource();
         const res = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: state.rawConfig }),
+            body: JSON.stringify({ content: rawConfig }),
         });
-        const data = await res.json();
-        if (data.success) {
-            state.dirty = false;
-            flashSaveStatus('saved');
-            showToast('配置已保存', 'success');
+        if (res.ok) {
+            showStatus('saved');
         } else {
-            throw new Error(data.error);
+            throw new Error('Save failed');
         }
-    } catch (err) {
-        flashSaveStatus('error');
-        showToast('保存失败: ' + err.message, 'error');
+    } catch (e) {
+        showStatus('error');
+        showToast('保存失败: ' + e.message, 'error');
     }
 }
 
 // ============================================================
-// SOURCE VIEW
+// STATUS & TOAST
 // ============================================================
-function updateSourceView() {
-    configCode.textContent = state.rawConfig;
+function showStatus(status) {
+    const el = $('save-status');
+    el.classList.add('visible');
+    if (status === 'saving') {
+        el.className = 'status-indicator visible';
+        el.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
+    } else if (status === 'saved') {
+        el.className = 'status-indicator visible';
+        el.innerHTML = '<i class="fa-solid fa-circle-check"></i> 已保存';
+        setTimeout(() => el.classList.remove('visible'), 2500);
+    } else if (status === 'error') {
+        el.className = 'status-indicator visible error';
+        el.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> 保存失败';
+    } else {
+        el.className = 'status-indicator visible';
+        el.innerHTML = '<i class="fa-solid fa-circle-check"></i> 就绪';
+        setTimeout(() => el.classList.remove('visible'), 2000);
+    }
+}
+
+function showToast(msg, type) {
+    const icons = { success: 'fa-check', error: 'fa-xmark', info: 'fa-info', warning: 'fa-triangle-exclamation' };
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i> ${esc(msg)}`;
+    $('toast-container').appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        toast.style.transition = 'all 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 // ============================================================
-// PREVIEW
+// BUILD & PUBLISH
 // ============================================================
-async function buildAndPreview() {
+async function doBuild() {
     showToast('正在构建...', 'info');
     try {
         const res = await fetch('/api/build', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
             showToast('构建完成，刷新预览', 'success');
-            refreshPreview();
+            $('preview-iframe').src = $('preview-iframe').src;
         } else {
-            showToast('构建失败: ' + (data.error || '未知错误'), 'error');
+            showToast('构建失败', 'error');
         }
-    } catch (err) {
-        showToast('构建请求失败: ' + err.message, 'error');
+    } catch (e) {
+        showToast('构建请求失败', 'error');
     }
 }
 
-function refreshPreview() {
-    previewIframe.src = previewIframe.src;
-}
+async function doPublish() {
+    const overlay = $('modal-overlay');
+    const title = $('modal-title');
+    const body = $('modal-body');
 
-// ============================================================
-// PUBLISH
-// ============================================================
-async function publish() {
-    const modal = $('modal-overlay');
-    $('modal-title').textContent = '发布中...';
-    $('modal-body').innerHTML = `
-        <div class="modal-spinner">
-            <div class="spinner"></div>
-            <span>正在构建并推送到 GitHub...</span>
-        </div>`;
-    modal.classList.add('active');
+    title.textContent = '发布中...';
+    body.innerHTML = `<div class="modal-spinner"><div class="spinner"></div><span>正在构建并推送到 GitHub...</span></div>`;
+    overlay.classList.add('active');
 
     try {
         const res = await fetch('/api/publish', { method: 'POST' });
         const data = await res.json();
+
         if (data.success) {
-            $('modal-title').textContent = '发布成功';
-            $('modal-body').innerHTML = `
-                <div style="text-align:center;padding:10px 0">
-                    <i class="fa-solid fa-circle-check" style="font-size:40px;color:var(--success);margin-bottom:12px;display:block"></i>
-                    <p style="color:var(--text-secondary);margin-bottom:16px">已成功推送到 GitHub</p>
+            title.textContent = '发布成功';
+            body.innerHTML = `
+                <div style="text-align:center;padding:8px 0">
+                    <i class="fa-solid fa-check" style="font-size:36px;color:var(--success);display:block;margin-bottom:10px"></i>
+                    <p style="color:var(--text-secondary);margin-bottom:14px">已成功推送到 GitHub</p>
                 </div>
                 <div class="modal-output">${esc(data.output)}</div>
-                <div style="text-align:right;margin-top:16px">
-                    <button class="btn-sm" onclick="closeModal()">关闭</button>
-                </div>`;
+                <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
         } else {
-            $('modal-title').textContent = '发布失败';
-            $('modal-body').innerHTML = `
-                <div style="text-align:center;padding:10px 0">
-                    <i class="fa-solid fa-circle-xmark" style="font-size:40px;color:var(--error);margin-bottom:12px;display:block"></i>
-                    <p style="color:var(--text-secondary);margin-bottom:16px">发布过程中出现错误</p>
+            title.textContent = '发布失败';
+            body.innerHTML = `
+                <div style="text-align:center;padding:8px 0">
+                    <i class="fa-solid fa-xmark" style="font-size:36px;color:var(--error);display:block;margin-bottom:10px"></i>
+                    <p style="color:var(--text-secondary);margin-bottom:14px">发布出错</p>
                 </div>
                 <div class="modal-output">${esc(data.error || '未知错误')}</div>
-                <div style="text-align:right;margin-top:16px">
-                    <button class="btn-sm" onclick="closeModal()">关闭</button>
-                </div>`;
+                <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
         }
-    } catch (err) {
-        $('modal-title').textContent = '发布失败';
-        $('modal-body').innerHTML = `
-            <div class="modal-output">${esc(err.message)}</div>
-            <div style="text-align:right;margin-top:16px">
-                <button class="btn-sm" onclick="closeModal()">关闭</button>
-            </div>`;
+    } catch (e) {
+        title.textContent = '发布失败';
+        body.innerHTML = `<div class="modal-output">${esc(e.message)}</div>
+            <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">关闭</button></div>`;
     }
 }
 
-function closeModal() {
-    $('modal-overlay').classList.remove('active');
+function closeModal() { $('modal-overlay').classList.remove('active'); }
+
+// ============================================================
+// PREVIEW TABS
+// ============================================================
+function switchTab(view) {
+    document.querySelectorAll('.preview-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+    const iframe = $('preview-iframe');
+    const source = $('config-source');
+    if (view === 'preview') {
+        iframe.style.display = '';
+        source.style.display = 'none';
+    } else {
+        iframe.style.display = 'none';
+        source.style.display = '';
+        $('config-code').textContent = rawConfig;
+    }
 }
 
 // ============================================================
-// EVENT LISTENERS
+// GLOBAL EVENTS
 // ============================================================
-function setupEventListeners() {
-    // Card toggles
-    cardsContainer.addEventListener('click', (e) => {
+function setupEvents() {
+    // Card collapse/expand
+    $('cards-container').addEventListener('click', (e) => {
         const toggle = e.target.closest('[data-toggle]');
         if (toggle) {
             const card = toggle.closest('.config-card');
             card.classList.toggle('collapsed');
             return;
         }
-
-        // Toggle switches
-        const toggleEl = e.target.closest('[data-toggle-field]');
-        if (toggleEl) {
-            toggleEl.classList.toggle('active');
-            const label = toggleEl.closest('.field-group')?.querySelector('.toggle-label')?.textContent || '';
-            const pathMap = {
-                '启用项目展示': 'projects.enabled',
-                '启用贡献图': 'contribution.enabled',
-                '使用真实数据': 'contribution.useRealData',
-                '启用提示': 'notice.enabled',
-                '启用链接模块': 'linksConfig.enabled',
-                'Google Analytics': 'analytics.gaEnabled',
-            };
-            if (pathMap[label]) setConfig(pathMap[label], toggleEl.classList.contains('active'));
-            return;
-        }
-
-        // Link toggles
-        const linkToggle = e.target.closest('[data-link-toggle]');
-        if (linkToggle) {
-            linkToggle.classList.toggle('active');
-            const idx = parseInt(linkToggle.dataset.linkToggle);
-            if (state.config.links && state.config.links[idx]) {
-                state.config.links[idx].enabled = linkToggle.classList.contains('active');
-                state.dirty = true;
-                updateSourceView(); debouncedSave();
-            }
-            return;
-        }
-        const acToggle = e.target.closest('[data-link-anticrawler]');
-        if (acToggle) {
-            acToggle.classList.toggle('active');
-            const idx = parseInt(acToggle.dataset.anticrawler);
-            if (state.config.links && state.config.links[idx]) {
-                state.config.links[idx].antiCrawler = acToggle.classList.contains('active');
-                state.dirty = true;
-                updateSourceView(); debouncedSave();
-            }
-            return;
-        }
-
-        // Remove array item
-        const removeBtn = e.target.closest('[data-array-remove]');
-        if (removeBtn) {
-            const idx = parseInt(removeBtn.dataset.arrayRemove);
-            const path = removeBtn.closest('[data-array-path]')?.dataset.arrayPath;
-            if (path && state.config[path]) {
-                state.config[path].splice(idx, 1);
-                state.dirty = true;
-                renderCards(state.config);
-                updateSourceView();
-                debouncedSave();
-            }
-            return;
-        }
-
-        // Remove link
-        const linkRemove = e.target.closest('[data-link-remove]');
-        if (linkRemove) {
-            const idx = parseInt(linkRemove.dataset.linkRemove);
-            if (state.config.links) {
-                state.config.links.splice(idx, 1);
-                state.dirty = true;
-                renderCards(state.config);
-                updateSourceView();
-                debouncedSave();
-            }
-            return;
-        }
-
-        // Add link
-        if (e.target.closest('#btn-add-link')) {
-            if (state.config.links) {
-                state.config.links.push({
-                    name: '新链接', description: '描述', url: 'https://',
-                    icon: 'fa-solid fa-link', brand: 'link', color: '#00ff9f',
-                    external: true, enabled: true, antiCrawler: false,
-                });
-                state.dirty = true;
-                renderCards(state.config);
-                updateSourceView();
-                debouncedSave();
-            }
-            return;
-        }
     });
 
-    // Input changes
-    cardsContainer.addEventListener('input', (e) => {
-        const input = e.target;
-        if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA' || input.tagName === 'SELECT') {
-            // Sync color picker + text
-            if (input.type === 'color') {
-                const textInput = input.nextElementSibling;
-                if (textInput && textInput.tagName === 'INPUT') textInput.value = input.value;
-            }
-            if (input.dataset.linkField && input.type !== 'color') {
-                const [idx, field] = input.dataset.linkField.split(':');
-                if (state.config.links && state.config.links[parseInt(idx)]) {
-                    state.config.links[parseInt(idx)][field] = input.value;
-                    state.dirty = true;
-                    updateSourceView();
-                    debouncedSave();
-                }
-            }
-        }
-    });
-
-    // Color input sync
-    cardsContainer.addEventListener('input', (e) => {
-        if (e.target.type === 'color') {
-            const textInput = e.target.nextElementSibling;
-            if (textInput && textInput.tagName === 'INPUT') {
-                textInput.value = e.target.value;
-            }
-        }
-        if (e.target.dataset.linkField && e.target.type !== 'color') {
-            const parts = e.target.dataset.linkField.split(':');
-            if (parts[1] === 'color' && e.target.tagName === 'INPUT') {
-                // Check if it's the text field (not color picker)
-                const idx = parseInt(parts[0]);
-                const colorPicker = cardsContainer.querySelector(`input[type="color"][data-link-field="${idx}:color"]`);
-                if (colorPicker && /^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                    colorPicker.value = e.target.value;
-                }
-            }
-        }
-    });
-
-    // Select changes
-    cardsContainer.addEventListener('change', (e) => {
-        if (e.target.tagName === 'SELECT') {
-            const label = e.target.closest('.field-group')?.querySelector('.field-label')?.textContent || '';
-            if (label === '默认模式') {
-                setConfig('theme.defaultMode', e.target.value);
-            }
-        }
-    });
-
-    // Buttons
-    $('btn-build').addEventListener('click', buildAndPreview);
-    $('btn-publish').addEventListener('click', publish);
-    $('btn-refresh-preview').addEventListener('click', refreshPreview);
+    // Top bar buttons
+    $('btn-build').addEventListener('click', doBuild);
+    $('btn-publish').addEventListener('click', doPublish);
+    $('btn-refresh-preview').addEventListener('click', () => { $('preview-iframe').src = $('preview-iframe').src; });
     $('modal-close').addEventListener('click', closeModal);
-    $('modal-overlay').addEventListener('click', (e) => {
-        if (e.target === $('modal-overlay')) closeModal();
-    });
+    $('modal-overlay').addEventListener('click', (e) => { if (e.target === $('modal-overlay')) closeModal(); });
 
     // Preview tabs
     document.querySelectorAll('.preview-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const view = tab.dataset.view;
-            if (view === 'preview') {
-                previewIframe.style.display = 'block';
-                configSource.classList.remove('visible');
-                configSource.classList.add('hidden');
-            } else {
-                previewIframe.style.display = 'none';
-                configSource.classList.remove('hidden');
-                configSource.classList.add('visible');
-                updateSourceView();
-            }
-        });
+        tab.addEventListener('click', () => switchTab(tab.dataset.view));
     });
 
-    // Collapse / Expand all
+    // Collapse/expand all
     $('btn-collapse-all').addEventListener('click', () => {
-        cardsContainer.querySelectorAll('.config-card').forEach(c => c.classList.add('collapsed'));
+        document.querySelectorAll('.config-card').forEach(c => c.classList.add('collapsed'));
     });
     $('btn-expand-all').addEventListener('click', () => {
-        cardsContainer.querySelectorAll('.config-card').forEach(c => c.classList.remove('collapsed'));
+        document.querySelectorAll('.config-card').forEach(c => c.classList.remove('collapsed'));
     });
 
     // Panel resizer
     setupResizer();
 
-    // Keyboard shortcut
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-            e.preventDefault();
-            saveConfig();
-        }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            publish();
-        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveConfig(); }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doPublish(); }
     });
 }
 
 // ============================================================
-// RESIZER
+// PANEL RESIZER
 // ============================================================
 function setupResizer() {
     const resizer = $('panel-resizer');
     const panel = $('cards-panel');
-    let startX, startWidth;
+    let startX, startW;
 
     resizer.addEventListener('mousedown', (e) => {
         startX = e.clientX;
-        startWidth = panel.offsetWidth;
+        startW = panel.offsetWidth;
         resizer.classList.add('active');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
+        document.body.style.cssText = 'cursor:col-resize;user-select:none';
 
         const onMove = (e) => {
-            const diff = e.clientX - startX;
-            const newWidth = Math.max(300, Math.min(600, startWidth + diff));
-            panel.style.width = newWidth + 'px';
+            const w = Math.max(320, Math.min(620, startW + e.clientX - startX));
+            panel.style.width = w + 'px';
         };
         const onUp = () => {
             resizer.classList.remove('active');
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
+            document.body.style.cssText = '';
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
         };
@@ -927,53 +897,6 @@ function setupResizer() {
 }
 
 // ============================================================
-// UI HELPERS
-// ============================================================
-let saveTimeout;
-function debouncedSave() {
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => saveConfig(), 800);
-}
-
-function flashSaveStatus(status) {
-    saveStatus.classList.add('visible');
-    if (status === 'saving') {
-        saveStatus.className = 'status-indicator visible';
-        saveStatus.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
-    } else if (status === 'saved') {
-        saveStatus.className = 'status-indicator visible';
-        saveStatus.innerHTML = '<i class="fa-solid fa-circle-check"></i> 已保存';
-        setTimeout(() => saveStatus.classList.remove('visible'), 2000);
-    } else if (status === 'error') {
-        saveStatus.className = 'status-indicator visible error';
-        saveStatus.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> 保存失败';
-    }
-}
-
-function showToast(message, type = 'info') {
-    const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info', warning: 'fa-triangle-exclamation' };
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `<i class="fa-solid ${icons[type]}"></i> ${esc(message)}`;
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(10px)';
-        toast.style.transition = 'all 0.3s';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-function esc(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-}
-function escAttr(str) {
-    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// ============================================================
 // START
 // ============================================================
-init();
+init().then(setupEvents);
