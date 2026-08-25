@@ -232,6 +232,9 @@ const CARD_DEFS = [
             { label: '显示名称', key: 'profile.name', type: 'text' },
             { label: '个性签名前缀', key: 'profile.taglinePrefix', type: 'text', placeholder: '🐱' },
             { label: '个性签名高亮', key: 'profile.taglineHighlight', type: 'text', placeholder: '欢迎来到我的主页' },
+        ],
+        sections: [
+            { label: '头像', itemsKey: '__avatar__', isAvatar: true },
         ]
     },
     {
@@ -398,9 +401,10 @@ function esc(s) {
 }
 
 function textHTML(label, key, value, opts) {
+    const inputType = key === 'site.url' || key.endsWith('.url') ? 'url' : 'text';
     return `<div class="field-group">
         <label class="field-label">${esc(label)}</label>
-        <input type="text" data-key="${key}" value="${esc(value)}" placeholder="${esc(opts?.placeholder || '')}" ${opts?.mono ? 'style="font-family:var(--font-mono);font-size:12px"' : ''}>
+        <input type="${inputType}" data-key="${key}" value="${esc(value)}" placeholder="${esc(opts?.placeholder || '')}" ${opts?.mono ? 'style="font-family:var(--font-mono);font-size:12px"' : ''}>
     </div>`;
 }
 
@@ -433,6 +437,26 @@ function toggleHTML(label, key, value) {
 function arraySectionHTML(sec) {
     const itemsKey = sec.itemsKey;
     const items = cfg[itemsKey] || [];
+
+    // Special avatar upload section
+    if (sec.isAvatar) {
+        const avatarPath = cfg.profile?.avatar || 'images/avatar.webp';
+        return `<div class="field-group">
+            <label class="field-label">${esc(sec.label)}</label>
+            <div class="avatar-upload" id="avatar-upload">
+                <div class="avatar-preview" id="avatar-preview">
+                    <img id="avatar-preview-img" src="${esc(avatarPath)}" alt="Avatar preview" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%2250%%22 x=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2240%22>📷</text></svg>'">
+                </div>
+                <div class="avatar-actions">
+                    <label class="btn-add" style="width:auto;padding:6px 14px;cursor:pointer">
+                        <i class="fa-solid fa-upload"></i> 选择图片
+                        <input type="file" accept="image/*" id="avatar-file-input" style="display:none">
+                    </label>
+                    <span class="avatar-hint" id="avatar-hint">支持 JPG、PNG、WebP</span>
+                </div>
+            </div>
+        </div>`;
+    }
 
     let itemsHTML = '';
     if (sec.isLinks) {
@@ -521,7 +545,8 @@ function bindCardEvents(cardEl) {
     });
 
     cardEl.querySelectorAll('[data-toggle]').forEach(toggle => {
-        toggle.addEventListener('click', () => {
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
             toggle.classList.toggle('on');
             setVal(toggle.dataset.key, toggle.classList.contains('on'));
         });
@@ -588,6 +613,56 @@ function bindCardEvents(cardEl) {
             });
             renderCards();
             debouncedSave();
+        });
+    }
+
+    // Avatar upload
+    const avatarInput = cardEl.querySelector('#avatar-file-input');
+    if (avatarInput) {
+        avatarInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                showToast('请选择图片文件', 'error');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('图片不能超过 5MB', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            const hint = cardEl.querySelector('#avatar-hint');
+            if (hint) hint.textContent = '上传中...';
+
+            reader.onload = async (ev) => {
+                try {
+                    const res = await fetch('/api/upload-avatar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ dataUrl: ev.target.result }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        // Update config
+                        cfg.profile = cfg.profile || {};
+                        cfg.profile.avatar = data.path;
+                        debouncedSave();
+
+                        // Update preview
+                        const previewImg = cardEl.querySelector('#avatar-preview-img');
+                        if (previewImg) previewImg.src = ev.target.result;
+                        if (hint) hint.textContent = '上传成功';
+                        showToast('头像上传成功', 'success');
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (err) {
+                    if (hint) hint.textContent = '上传失败';
+                    showToast('头像上传失败: ' + err.message, 'error');
+                }
+            };
+            reader.readAsDataURL(file);
         });
     }
 }

@@ -75,6 +75,35 @@ async function main() {
             return;
         }
 
+        // API: POST upload avatar
+        if (url.pathname === '/api/upload-avatar' && req.method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', () => {
+                try {
+                    const { dataUrl } = JSON.parse(body);
+                    // Extract base64 data from data URL
+                    const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+                    if (!matches) throw new Error('Invalid data URL');
+
+                    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+                    const imagesDir = path.join(PROJECT_ROOT, 'images');
+                    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+
+                    const avatarPath = path.join(imagesDir, 'avatar.' + ext);
+                    fs.writeFileSync(avatarPath, Buffer.from(matches[2], 'base64'));
+
+                    res.writeHead(200); res.end(JSON.stringify({
+                        success: true,
+                        path: '/images/avatar.' + ext
+                    }));
+                } catch (e) {
+                    res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
         // API: build
         if (url.pathname === '/api/build' && req.method === 'POST') {
             try {
