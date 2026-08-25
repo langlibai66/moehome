@@ -155,6 +155,25 @@ async function main() {
             return;
         }
 
+        // API: POST reset config to original (from git HEAD)
+        if (url.pathname === '/api/reset' && req.method === 'POST') {
+            try {
+                const configPath = path.join(PROJECT_ROOT, 'src', 'config.js');
+                const originalContent = execSync('git show HEAD:src/config.js', {
+                    cwd: PROJECT_ROOT, encoding: 'utf8', stdio: 'pipe'
+                });
+                if (originalContent && originalContent.includes('HOMEPAGE_CONFIG')) {
+                    fs.writeFileSync(configPath, originalContent, 'utf8');
+                    res.writeHead(200); res.end(JSON.stringify({ success: true, message: '已恢复为初始配置' }));
+                } else {
+                    throw new Error('无法从 git 恢复配置');
+                }
+            } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+        }
+
         // API: build
         if (url.pathname === '/api/build' && req.method === 'POST') {
             try {

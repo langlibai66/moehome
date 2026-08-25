@@ -834,6 +834,46 @@ async function doRollback() {
     }
 }
 
+async function doReset() {
+    const overlay = $('modal-overlay');
+    const title = $('modal-title');
+    const body = $('modal-body');
+    title.textContent = '确认重置？';
+    body.innerHTML = `
+        <div style="text-align:center;padding:10px 0">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size:36px;color:var(--warn);display:block;margin-bottom:10px"></i>
+            <p style="color:var(--text-secondary);margin-bottom:6px">此操作将恢复 config.js 到初始状态</p>
+            <p style="color:var(--text3);font-size:12px">所有修改将丢失，但会自动创建备份</p>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+            <button class="btn-sm" onclick="closeModal()">取消</button>
+            <button class="btn-sm danger" id="btn-confirm-reset">确认重置</button>
+        </div>
+    `;
+    overlay.classList.add('active');
+    const confirmBtn = $('btn-confirm-reset');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            closeModal();
+            showToast('正在重置...', 'info');
+            try {
+                // Auto-backup before reset
+                await fetch('/api/backup', { method: 'POST' });
+                const res = await fetch('/api/reset', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('已恢复初始配置，重新加载中...', 'success');
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    showToast('重置失败: ' + data.error, 'error');
+                }
+            } catch (e) {
+                showToast('重置失败', 'error');
+            }
+        });
+    }
+}
+
 function openPreviewInNewTab() {
     window.open('/', '_blank');
 }
@@ -915,6 +955,7 @@ function setupEvents() {
     $('btn-build').addEventListener('click', doBuild);
     $('btn-backup')?.addEventListener('click', doBackup);
     $('btn-rollback')?.addEventListener('click', doRollback);
+    $('btn-reset')?.addEventListener('click', doReset);
     $('btn-publish').addEventListener('click', doPublish);
     $('btn-refresh-preview').addEventListener('click', () => { $('preview-iframe').src = $('preview-iframe').src; });
     $('modal-close').addEventListener('click', closeModal);

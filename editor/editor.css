@@ -390,6 +390,36 @@ input[type="number"] { width: 80px; }
 .btn-icon:hover { background: var(--card-hover); color: var(--text); border-color: var(--border-focus); }
 .btn-icon.danger:hover { color: var(--error); border-color: var(--error); }
 
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm.danger:hover { border-color: var(--error); color: var(--error); }
+
+.btn-danger {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,59,59,0.3);
+    background: rgba(255,59,59,0.1);
+    color: var(--error);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.btn-danger:hover { border-color: var(--error); background: rgba(255,59,59,0.2); }
+
 .btn-add {
     padding: 6px 12px;
     font-size: 12px;
