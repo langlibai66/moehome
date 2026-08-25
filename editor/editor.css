@@ -104,6 +104,8 @@ html, body {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    height: 100%;
+    overflow: hidden;
 }
 .panel-header {
     display: flex;
@@ -122,8 +124,10 @@ html, body {
 }
 .panel-actions { display: flex; gap: 4px; }
 .cards-scroll {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 12px;
     display: flex;
     flex-direction: column;
