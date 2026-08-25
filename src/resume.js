@@ -30,7 +30,7 @@ window.RESUME_CONFIG = {
             },
             {
                 category: "后端开发",
-                description: "熟练大模型部署，熟练使用python完成后端接口开发,s熟悉服务器运维。"
+                description: "熟练大模型部署，熟练使用python完成后端接口开发,熟悉服务器运维。"
             },
             {
                 category: "开源与运营",

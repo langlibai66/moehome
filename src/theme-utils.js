@@ -143,7 +143,7 @@ const ThemeManager = {
     const stored = this.loadFromStorage();
     if (!stored) return;
 
-    if (stored.mode && ["auto", "light", "dark"].includes(stored.mode)) {
+    if (stored.mode && ["light", "dark"].includes(stored.mode)) {
       this.activeMode = stored.mode;
     }
 
@@ -289,7 +289,7 @@ const ThemeManager = {
    * 设置主题模式（持久化保存）
    */
   setSavedTheme(theme) {
-    if (!["auto", "light", "dark"].includes(theme)) {
+    if (!["light", "dark"].includes(theme)) {
       console.warn("[Theme] 无效的主题:", theme);
       return;
     }
@@ -304,12 +304,9 @@ const ThemeManager = {
    * 获取实际生效的主题
    */
   getEffectiveTheme(savedTheme) {
-    if (savedTheme === "auto") {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    }
-    return savedTheme;
+    // 仅保留 light / dark 两种模式，auto 已移除
+    if (savedTheme === "auto") return "light";
+    return ["light", "dark"].includes(savedTheme) ? savedTheme : "light";
   },
 
   /**
@@ -331,7 +328,7 @@ const ThemeManager = {
    */
   getNextTheme() {
     const current = this.getSavedTheme();
-    const cycle = ["auto", "light", "dark"];
+    const cycle = ["light", "dark"];
     const currentIndex = cycle.indexOf(current);
     return cycle[(currentIndex + 1) % cycle.length];
   },
@@ -424,7 +421,7 @@ const ThemeManager = {
    * 获取主题标签
    */
   getThemeLabel(theme) {
-    const labels = { auto: "跟随系统", light: "浅色", dark: "暗色" };
+    const labels = { light: "浅色", dark: "暗色" };
     return labels[theme] || theme;
   },
 
@@ -432,7 +429,7 @@ const ThemeManager = {
    * 获取主题图标
    */
   getThemeIcon(theme) {
-    const icons = { auto: "fa-desktop", light: "fa-sun", dark: "fa-moon" };
+    const icons = { light: "fa-sun", dark: "fa-moon" };
     return icons[theme] || "fa-circle";
   },
 };

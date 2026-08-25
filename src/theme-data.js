@@ -18,11 +18,43 @@ const THEME_CONSTANTS = {
  */
 const builtinSchemes = {
   // === 系统默认方案 ===
+  // 浅色默认 = 冰川青（Nord 配色）
+  nordSnowStorm: {
+    id: "nordSnowStorm",
+    name: "冰川青 (默认)",
+    icon: "fa-snowflake",
+    isDefault: true,
+    modes: ["light"],
+    colors: {
+      accent: "#88C0D0",
+      bgPrimary: "#E5E9F0",
+      bgSecondary: "#ECEFF4",
+      textPrimary: "#2E3440",
+      textSecondary: "#4C566A",
+      border: "#D8DEE9",
+    },
+  },
+  // 暗色默认 = 摩卡色（Catppuccin）
+  catppuccinMocha: {
+    id: "catppuccinMocha",
+    name: "摩卡色 (默认)",
+    icon: "fa-mug-hot",
+    isDefault: true,
+    modes: ["dark"],
+    colors: {
+      accent: "#89b4fa",
+      bgPrimary: "#1e1e2e",
+      bgSecondary: "#181825",
+      textPrimary: "#cdd6f4",
+      textSecondary: "#a6adc8",
+      border: "#313244",
+    },
+  },
+  // === 社区配色方案（保留，用户可在下拉菜单里手动切换） ===
   coralOrange: {
     id: "coralOrange",
-    name: "珊瑚橙 (默认)",
+    name: "珊瑚橙",
     icon: "fa-palette",
-    isDefault: true,
     modes: ["light"],
     colors: {
       accent: "#C6613F",
@@ -35,9 +67,8 @@ const builtinSchemes = {
   },
   cyberGreen: {
     id: "cyberGreen",
-    name: "赛博绿 (默认)",
+    name: "赛博绿",
     icon: "fa-bolt",
-    isDefault: true,
     modes: ["dark"],
     colors: {
       accent: "#00ff9f",
@@ -46,21 +77,6 @@ const builtinSchemes = {
       textPrimary: "#e8e8e8",
       textSecondary: "#888888",
       border: "#222222",
-    },
-  },
-  // === 社区配色方案 ===
-  catppuccinMocha: {
-    id: "catppuccinMocha",
-    name: "摩卡色",
-    icon: "fa-mug-hot",
-    modes: ["dark"],
-    colors: {
-      accent: "#89b4fa",
-      bgPrimary: "#1e1e2e",
-      bgSecondary: "#181825",
-      textPrimary: "#cdd6f4",
-      textSecondary: "#a6adc8",
-      border: "#313244",
     },
   },
   kanagawaDragon: {
@@ -75,20 +91,6 @@ const builtinSchemes = {
       textPrimary: "#c5c9c5",
       textSecondary: "#7a8382",
       border: "#282727",
-    },
-  },
-  rosePineMoon: {
-    id: "rosePineMoon",
-    name: "鸢尾紫",
-    icon: "fa-moon",
-    modes: ["dark"],
-    colors: {
-      accent: "#c4a7e7",
-      bgPrimary: "#232136",
-      bgSecondary: "#2a273f",
-      textPrimary: "#e0def4",
-      textSecondary: "#6e6a86",
-      border: "#393552",
     },
   },
   nordSnowStorm: {
