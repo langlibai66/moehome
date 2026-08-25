@@ -8,13 +8,13 @@ window.HOMEPAGE_CONFIG = {
   site: {
     name: "杨晨旭",
     tagline: "开发者 / 技术爱好者",
-    url: "https://yourblog.com/rss.xml",
+    url: "",
     ogImage: "/images/avatar.webp",
   },
 
   // ========== SEO 配置 ==========
   seo: {
-    title: "🐱 user@host:~|",
+    title: "杨晨旭 - 个人主页",
     description: "欢迎访问杨晨旭的个人主页，这里聚合了我的所有在线身份与项目。",
     keywords: ["杨晨旭", "个人主页", "开发者"],
     og: {
@@ -58,7 +58,7 @@ window.HOMEPAGE_CONFIG = {
 
   // ========== 导航栏 ==========
   nav: {
-    enabled: false,
+    enabled: true,
     brand: {
       showPrompt: true,
       hoverText: "~/whoami",
@@ -131,9 +131,9 @@ window.HOMEPAGE_CONFIG = {
   rss: {
     enabled: false,
     url: "https://yourblog.com/rss.xml",
-    count: 6,
+    count: 4,
     openInNewTab: true,
-    title: { text: "", icon: "fa-solid fa-newspaper" },
+    title: { text: "近期更新", icon: "fa-solid fa-newspaper" },
     display: { showDate: true, showDescription: true, maxDescriptionLength: 100 },
   },
 
@@ -149,7 +149,7 @@ window.HOMEPAGE_CONFIG = {
   // ========== GitHub 贡献图 ==========
   contribution: {
     enabled: true,
-    useRealData: false,
+    useRealData: true,
     githubUser: "",
   },
 

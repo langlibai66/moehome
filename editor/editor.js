@@ -129,108 +129,108 @@ let saveTimer = null;
 const $ = id => document.getElementById(id);
 
 // ============================================================
-// CONFIG WRITER — 将结构化数据写回 config.js
+// CONFIG WRITER — 解析 → 合并 → 序列化（不用正则替换）
 // ============================================================
 function buildConfigSource() {
-    let s = rawConfig;
+    // 1. 从原始内容解析出完整的配置对象
+    const original = parseFullConfig(rawConfig);
 
-    function repl(key, val) {
-        const patterns = [
-            new RegExp(key + ':\\s*["`]([^"`]*)["`]'),
-            new RegExp(key + ":\\s*'([^']*)'"),
-            new RegExp(key + ':\\s*(true|false)'),
-            new RegExp(key + ':\\s*(\\d+(?:\\.\\d+)?)'),
-        ];
-        for (const p of patterns) {
-            if (p.test(s)) {
-                if (typeof val === 'boolean') return s.replace(p, key + ': ' + val);
-                if (typeof val === 'number') return s.replace(p, key + ': ' + val);
-                return s.replace(p, key + ': "' + String(val).replace(/"/g, '\\"') + '"');
-            }
+    // 2. 用编辑器中的 cfg 覆盖原始值
+    mergeConfig(original, cfg);
+
+    // 3. 序列化回 JS 代码
+    return serializeConfig(original);
+}
+
+/**
+ * 提取 HOMEPAGE_CONFIG 对象内容并安全解析为 JS 对象
+ */
+function parseFullConfig(raw) {
+    // 找到 window.HOMEPAGE_CONFIG = {...} 的 { 和对应的 }
+    const startMarker = 'window.HOMEPAGE_CONFIG = ';
+    const startIdx = raw.indexOf(startMarker);
+    if (startIdx === -1) return {};
+
+    const braceStart = raw.indexOf('{', startIdx);
+    if (braceStart === -1) return {};
+
+    // 用括号匹配找到闭合 }
+    let depth = 0;
+    let endIdx = -1;
+    for (let i = braceStart; i < raw.length; i++) {
+        if (raw[i] === '{') depth++;
+        else if (raw[i] === '}') {
+            depth--;
+            if (depth === 0) { endIdx = i; break; }
         }
-        return s;
+    }
+    if (endIdx === -1) return {};
+
+    const objStr = raw.substring(braceStart, endIdx + 1);
+    // 安全执行对象字面量
+    try {
+        return new Function('return ' + objStr)();
+    } catch (e) {
+        console.error('Parse config error:', e);
+        return {};
+    }
+}
+
+/**
+ * 将编辑器中的 cfg 合并到原始配置对象中
+ * 只覆盖编辑器中有修改的字段
+ */
+function mergeConfig(target, source, prefix = '') {
+    for (const [key, value] of Object.entries(source)) {
+        const path = prefix ? prefix + '.' + key : key;
+        if (value && typeof value === 'object' && !Array.isArray(value) && typeof value !== 'function') {
+            if (!target[key]) target[key] = Array.isArray(value) ? [] : {};
+            mergeConfig(target[key], value, path);
+        } else if (Array.isArray(value)) {
+            target[key] = [...value];
+        } else if (value !== undefined && value !== null && value !== '') {
+            target[key] = value;
+        }
+    }
+}
+
+/**
+ * 将配置对象序列化为格式化的 JS 代码
+ */
+function serializeConfig(obj) {
+    const lines = [];
+    lines.push('/**');
+    lines.push(' * MoeWah Homepage Configuration');
+    lines.push(' * 所有可配置内容集中管理，便于维护和更新');
+    lines.push(' */');
+    lines.push('');
+    lines.push('window.HOMEPAGE_CONFIG = ' + serializeValue(obj, 1) + ';');
+    lines.push('');
+    return lines.join('\n');
+}
+
+function serializeValue(val, indent) {
+    if (val === null || val === undefined) return 'null';
+    if (typeof val === 'boolean') return val ? 'true' : 'false';
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'string') return '"' + val.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+
+    if (Array.isArray(val)) {
+        if (val.length === 0) return '[]';
+        const items = val.map(item => '    '.repeat(indent) + serializeValue(item, indent + 1));
+        return '[\n' + items.join(',\n') + '\n' + '    '.repeat(indent - 1) + ']';
     }
 
-    // Site
-    s = repl('name', cfg.site?.name || '');
-    s = repl('tagline', cfg.site?.tagline || '');
-    s = repl('url', cfg.site?.url || '');
+    if (typeof val === 'object') {
+        const entries = Object.entries(val);
+        if (entries.length === 0) return '{}';
+        const pairs = entries.map(([k, v]) => {
+            return '    '.repeat(indent) + k + ': ' + serializeValue(v, indent + 1);
+        });
+        return '{\n' + pairs.join(',\n') + '\n' + '    '.repeat(indent - 1) + '}';
+    }
 
-    // Profile
-    s = repl('name', cfg.profile?.name || '');
-    s = repl('prefix', cfg.profile?.taglinePrefix || '');
-    s = repl('highlight', cfg.profile?.taglineHighlight || '');
-
-    // Identity
-    s = replaceArray(s, 'identity', cfg.identity || []);
-    s = replaceArray(s, 'interests', cfg.interests || []);
-    s = replaceArray(s, 'quotes', cfg.quotes || []);
-
-    // Terminal
-    s = repl('title', cfg.terminal?.title || '');
-
-    // Theme
-    s = repl('default', cfg.theme?.default || 'auto');
-    s = repl('light', cfg.theme?.lightScheme || '');
-    s = repl('dark', cfg.theme?.darkScheme || '');
-
-    // Projects
-    s = repl('enabled', cfg.projects?.enabled ?? true);
-    s = repl('text', cfg.projects?.titleText || '');
-    s = repl('githubUser', cfg.projects?.githubUser || '');
-    s = repl('count', cfg.projects?.count || 6);
-
-    // Contribution
-    s = repl('enabled', cfg.contribution?.enabled ?? true);
-    s = repl('useRealData', cfg.contribution?.useRealData ?? true);
-
-    // RSS
-    s = repl('enabled', cfg.rss?.enabled ?? false);
-    s = repl('url', cfg.rss?.url || '');
-
-    // Links
-    s = repl('enabled', cfg.linksConfig?.enabled ?? true);
-    s = repl('text', cfg.linksConfig?.titleText || '');
-    s = rebuildLinks(s, cfg.links || []);
-
-    // Notice
-    s = repl('enabled', cfg.notice?.enabled ?? false);
-    s = repl('text', cfg.notice?.text || '');
-
-    // Footer
-    s = repl('year', cfg.footer?.copyrightYear || '');
-    s = repl('name', cfg.footer?.copyrightName || '');
-
-    return s;
-}
-
-function replaceArray(source, key, items) {
-    const pattern = new RegExp(key + ':\\s*\\[[\\s\\S]*?\\n\\s*\\]');
-    const arrStr = items.map(v => `        "${v.replace(/"/g, '\\"')}"`).join(',\n');
-    const replacement = key + ': [\n' + arrStr + '\n    ]';
-    return source.replace(pattern, replacement);
-}
-
-function rebuildLinks(source, links) {
-    const pattern = /links:\s*\[[\s\S]*?\n\s*\]/;
-    let linksStr = 'links: [\n';
-    links.forEach((l, i) => {
-        linksStr += '        {\n';
-        linksStr += `            name: "${l.name.replace(/"/g, '\\"')}",\n`;
-        linksStr += `            description: "${(l.description || '').replace(/"/g, '\\"')}",\n`;
-        linksStr += `            url: "${l.url.replace(/"/g, '\\"')}",\n`;
-        linksStr += `            icon: "${l.icon.replace(/"/g, '\\"')}",\n`;
-        linksStr += `            brand: "${l.brand.replace(/"/g, '\\"')}",\n`;
-        linksStr += `            color: "${l.color || '#00ff9f'}",\n`;
-        linksStr += `            external: ${l.external},\n`;
-        linksStr += `            enabled: ${l.enabled},\n`;
-        linksStr += `            antiCrawler: ${l.antiCrawler},\n`;
-        linksStr += '        }';
-        if (i < links.length - 1) linksStr += ',';
-        linksStr += '\n';
-    });
-    linksStr += '    ]';
-    return source.replace(pattern, linksStr);
+    return String(val);
 }
 
 // ============================================================
