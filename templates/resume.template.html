@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, shrink-to-fit=no">
+    <title>{{NAME}} · 简历</title>
+    <meta name="description" content="{{NAME}} · {{TITLE}} · 个人简历页" />
+    <meta name="keywords" content="{{NAME}}, 简历, resume, 太原理工大学, 人工智能" />
+    <meta property="og:type" content="profile" />
+    <meta property="og:title" content="{{NAME}} · 简历" />
+    <meta property="og:description" content="{{TITLE}} · {{SCHOOL}}" />
+    <meta property="og:image" content="{{AVATAR}}" />
+
+    {{FAVICON_LINKS}}
+    {{THEME_INIT_SCRIPT}}
+
+    <link rel="preconnect" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    {{DEFAULT_THEME_VARS}}
+
+    <style>
+        :root {
+            --resume-max: 860px;
+            --resume-gap: 28px;
+        }
+        .resume-nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 56px;
+            z-index: 100;
+            backdrop-filter: blur(18px) saturate(1.4);
+            -webkit-backdrop-filter: blur(18px) saturate(1.4);
+            background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+            border-bottom: 1px solid var(--border);
+        }
+        .resume-nav-inner {
+            max-width: var(--resume-max);
+            height: 100%;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .resume-back {
+            color: var(--text-secondary);
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: color .2s;
+        }
+        .resume-back:hover { color: var(--accent); }
+        .resume-nav-actions { display: inline-flex; align-items: center; gap: 8px; }
+
+        .resume-page {
+            max-width: var(--resume-max);
+            margin: 0 auto;
+            padding: calc(56px + 40px) 24px 80px;
+            display: flex;
+            flex-direction: column;
+            gap: var(--resume-gap);
+        }
+
+        /* 玻璃卡（复用首页 token） */
+        .glass {
+            position: relative;
+            border-radius: 18px;
+            padding: 28px;
+            background: linear-gradient(180deg, var(--glass-border-top), transparent 40%), var(--bg-secondary);
+            border-top: 1px solid var(--glass-border-top);
+            border-bottom: 1px solid var(--glass-border-bottom);
+            border-left: 1px solid var(--glass-border-side);
+            border-right: 1px solid var(--glass-border-side);
+            box-shadow: var(--glass-outer-shadow), 0 1px 0 var(--glass-border-top) inset;
+        }
+        .glass-strong {
+            background: linear-gradient(180deg, var(--glass-border-top), transparent 40%), var(--bg-secondary);
+            box-shadow: 0 12px 40px var(--shadow-md), 0 1px 0 var(--glass-border-top) inset;
+        }
+
+        /* Hero */
+        .resume-hero {
+            display: grid;
+            grid-template-columns: 168px 1fr;
+            gap: 32px;
+            align-items: center;
+        }
+        .resume-portrait {
+            width: 168px;
+            height: 220px;
+            object-fit: cover;
+            border-radius: 14px;
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 0 4px var(--bg-primary), 0 0 40px var(--accent-dim), 0 18px 50px rgba(0,0,0,.5);
+        }
+        .resume-name {
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: clamp(2rem, 5vw, 2.6rem);
+            font-weight: 600;
+            margin-bottom: 6px;
+            line-height: 1.15;
+        }
+        .resume-title {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 18px;
+        }
+        .resume-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: var(--hover-bg);
+            color: var(--text-primary);
+            font-size: 12.5px;
+            text-decoration: none;
+            border: 1px solid var(--card-border-muted);
+            transition: background .2s, color .2s, transform .15s;
+        }
+        .chip:hover {
+            background: var(--active-bg);
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .chip i { font-size: 11px; color: var(--accent); }
+
+        /* 区块头 */
+        .sec-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            color: var(--text-primary);
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .sec-header i {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center; justify-content: center;
+            background: var(--accent-dim);
+            color: var(--accent);
+            font-size: 14px;
+        }
+
+        /* 列表条目 */
+        .item { display: flex; flex-direction: column; gap: 6px; }
+        .item + .item { margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--border); }
+        .item-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .item-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .item-title .sub {
+            color: var(--text-secondary);
+            font-weight: 400;
+            font-size: 13.5px;
+            margin-left: 8px;
+        }
+        .item-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .item-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        .item-tags {
+            display: flex; flex-wrap: wrap; gap: 6px;
+        }
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11.5px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid var(--card-border-muted);
+        }
+        .tag.level-gold { background: rgba(255, 193, 7, .15); color: #ffc107; border-color: rgba(255, 193, 7, .35); }
+        .tag.level-silver { background: rgba(160, 160, 160, .15); color: #b0b0b0; border-color: rgba(160, 160, 160, .35); }
+        .tag.level-bronze { background: rgba(205, 127, 50, .15); color: #cd7f32; border-color: rgba(205, 127, 50, .35); }
+        .tag.level-award { background: rgba(0, 212, 255, .12); color: #00d4ff; border-color: rgba(0, 212, 255, .35); }
+
+        .bul { list-style: none; padding: 0; margin: 4px 0 0; }
+        .bul li {
+            position: relative;
+            padding: 4px 0 4px 18px;
+            color: var(--text-secondary);
+            font-size: 13.5px;
+            line-height: 1.7;
+        }
+        .bul li::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 13px;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        .award-row {
+            display: flex; justify-content: space-between; align-items: center; gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px dashed var(--border);
+        }
+        .award-row:last-child { border-bottom: none; }
+        .award-name { font-size: 14.5px; color: var(--text-primary); }
+        .award-name small { color: var(--text-secondary); margin-left: 6px; }
+
+        .sk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+        .sk-card {
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: var(--hover-bg);
+            border: 1px solid var(--card-border-muted);
+        }
+        .sk-card .cat {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 6px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .sk-card .desc {
+            font-size: 12.5px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        @media (max-width: 640px) {
+            .resume-hero { grid-template-columns: 1fr; text-align: center; }
+            .resume-portrait { margin: 0 auto; width: 140px; height: 184px; }
+            .resume-chips { justify-content: center; }
+            .resume-page { padding-left: 16px; padding-right: 16px; }
+        }
+    </style>
+
+    <link rel="preload" href="/style.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="/style.css"></noscript>
+</head>
+<body>
+    <nav class="resume-nav">
+        <div class="resume-nav-inner">
+            <a href="/" class="resume-back"><i class="fa-solid fa-arrow-left"></i> 返回主页</a>
+            <div class="resume-nav-actions">
+                <button class="nav-theme-toggle" id="nav-theme-toggle" aria-label="主题设置" title="主题设置"><i class="fa-solid fa-palette"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="resume-page">
+        <!-- Hero -->
+        <section class="glass glass-strong resume-hero">
+            <img class="resume-portrait" src="{{AVATAR}}" alt="{{NAME}}" width="168" height="220" />
+            <div>
+                <h1 class="resume-name">{{NAME}}</h1>
+                <p class="resume-title">{{TITLE}} · {{SCHOOL}}</p>
+                <div class="resume-chips">
+                    <a class="chip" href="tel:{{PHONE}}"><i class="fa-solid fa-phone"></i>{{PHONE}}</a>
+                    <a class="chip" id="resume-email" href="javascript:void(0)" data-email-encoded="{{EMAIL_ENCODED}}" onclick="window.__copyEmail(this)"><i class="fa-solid fa-envelope"></i>{{EMAIL}}</a>
+                    <a class="chip" href="https://{{WEBSITE}}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe"></i>{{WEBSITE}}</a>
+                    <span class="chip"><i class="fa-solid fa-brain"></i>{{MBTI}}</span>
+                    <a class="chip" href="{{GITHUB}}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github"></i>GitHub</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 教育 -->
+        <section class="glass glass-strong">
+            <div class="sec-header"><i class="fa-solid fa-graduation-cap"></i>教育经历</div>
+            {{EDUCATION_HTML}}
+        </section>
+
+        <!-- 专业技能 -->
+        <section class="glass glass-strong">
+            <div class="sec-header"><i class="fa-solid fa-screwdriver-wrench"></i>专业技能</div>
+            <div class="sk-grid">{{SKILLS_HTML}}</div>
+        </section>
+
+        <!-- 科研 -->
+        <section class="glass glass-strong">
+            <div class="sec-header"><i class="fa-solid fa-flask"></i>科研经历</div>
+            {{PUBLICATIONS_HTML}}
+        </section>
+
+        <!-- 开源 -->
+        <section class="glass glass-strong">
+            <div class="sec-header"><i class="fa-brands fa-github"></i>开源经历</div>
+            {{OPENSOURCE_HTML}}
+        </section>
+
+        <!-- 项目 -->
+        <section class="glass glass-strong">
+            <div class="sec-header"><i class="fa-solid fa-folder-open"></i>项目经历</div>
+            {{PROJECTS_HTML}}
+        </section>
+
+        <!-- 竞赛 -->
+        <section class="glass glass-strong">
+            <div class="sec-header"><i class="fa-solid fa-trophy"></i>科技竞赛</div>
+            {{AWARDS_HTML}}
+        </section>
+    </main>
+
+    <!-- 主题下拉 -->
+    <div class="theme-dropdown" id="theme-dropdown" aria-hidden="true">
+        <div class="theme-section">
+            <div class="theme-section-label">主题模式</div>
+            <div class="theme-mode-list" id="theme-mode-list" role="listbox">
+                <button class="theme-mode-item" data-mode="auto" role="option" tabindex="0"><i class="fa-solid fa-desktop"></i><span>跟随系统</span></button>
+                <button class="theme-mode-item" data-mode="light" role="option" tabindex="0"><i class="fa-solid fa-sun"></i><span>浅色</span></button>
+                <button class="theme-mode-item" data-mode="dark" role="option" tabindex="0"><i class="fa-solid fa-moon"></i><span>暗色</span></button>
+            </div>
+        </div>
+        <div class="theme-divider"></div>
+        <div class="theme-section">
+            <div class="theme-section-label">配色方案</div>
+            <div class="theme-scheme-list" id="theme-scheme-list" role="listbox"></div>
+        </div>
+    </div>
+
+    <!-- 邮箱复制 toast + 主题脚本 -->
+    <script src="/config.js" defer></script>
+    <script src="/theme-utils.js" defer></script>
+    <script>
+    // 主题切换（复用首页行为）
+    document.addEventListener('DOMContentLoaded', function () {
+        var t = document.getElementById('nav-theme-toggle');
+        var dd = document.getElementById('theme-dropdown');
+        if (t && dd) {
+            t.addEventListener('click', function (e) {
+                e.stopPropagation();
+                dd.classList.toggle('is-active');
+                if (window.THEME_HELPERS && typeof window.THEME_HELPERS.populateSchemeList === 'function') {
+                    // 简化：触发一次方案列表渲染
+                }
+            });
+            document.addEventListener('click', function () { dd.classList.remove('is-active'); });
+        }
+    });
+    </script>
+</body>
+</html>

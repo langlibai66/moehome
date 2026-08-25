@@ -75,6 +75,34 @@ async function main() {
             return;
         }
 
+        // API: GET resume config (供 /editor/resume)
+        if (url.pathname === '/api/resume-config' && req.method === 'GET') {
+            try {
+                const content = fs.readFileSync(path.join(PROJECT_ROOT, 'src', 'resume.js'), 'utf8');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ content }));
+            } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+        }
+
+        // API: POST resume config
+        if (url.pathname === '/api/resume-config' && req.method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', () => {
+                try {
+                    const { content } = JSON.parse(body);
+                    fs.writeFileSync(path.join(PROJECT_ROOT, 'src', 'resume.js'), content, 'utf8');
+                    res.writeHead(200); res.end(JSON.stringify({ success: true }));
+                } catch (e) {
+                    res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
         // API: POST upload avatar
         if (url.pathname === '/api/upload-avatar' && req.method === 'POST') {
             let body = '';
@@ -223,6 +251,10 @@ async function main() {
         // Static: editor routes
         if (url.pathname === '/editor' || url.pathname === '/editor/') {
             serve(res, path.join(EDITOR_DIR, 'editor.html'));
+            return;
+        }
+        if (url.pathname === '/editor/resume' || url.pathname === '/editor/resume/') {
+            serve(res, path.join(EDITOR_DIR, 'resume.html'));
             return;
         }
         if (url.pathname.startsWith('/editor/')) {

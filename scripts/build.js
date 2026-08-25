@@ -1001,31 +1001,7 @@ function generateSkeletonLinksSectionHTML(links, linksConfig) {
                 </div>`;
 }
 
-// 生成 Notice HTML
-function generateNoticeHTML(notice) {
-    if (!notice.enabled) {
-        return '';
-    }
-
-    return `                <!-- Notice -->
-                <div class="notice notice-${notice.type}">
-                    <div class="notice-icon">
-                        <i class="${notice.icon}"></i>
-                    </div>
-                    <div class="notice-content">
-                        ${notice.text}
-                    </div>
-                </div>`;
-}
-
-// 生成骨架屏 Notice 占位 HTML
-function generateSkeletonNoticeHTML(notice) {
-    if (!notice.enabled) {
-        return '';
-    }
-
-    return '<div class="skeleton-notice skeleton"></div>';
-}
+// Notice HTML 函数已彻底移除（声明功能删除）
 
 // 生成音乐切换图标 HTML（极简音符图标）
 function generateMusicToggleIconHTML(music) {
@@ -2490,11 +2466,7 @@ const config = {
     footerIcpNumber: extractNestedString(/icp:\s*\{([\s\S]*?)\}/, 'number', ''),
     footerIcpUrl: extractNestedString(/icp:\s*\{([\s\S]*?)\}/, 'url', 'https://beian.miit.gov.cn/'),
 
-    // Notice
-    noticeEnabled: extractNestedString(/notice:\s*\{([\s\S]*?)\}/, 'enabled', 'true') === 'true',
-    noticeType: extractNestedString(/notice:\s*\{([\s\S]*?)\}/, 'type', 'warning'),
-    noticeIcon: extractNestedString(/notice:\s*\{([\s\S]*?)\}/, 'icon', 'fa-solid fa-shield-halved'),
-    noticeText: extractNestedString(/notice:\s*\{([\s\S]*?)\}/, 'text', '声明：本人不会主动邀请或联系任何人，任何冒用本人名义的一切事物，请务必谨防受骗！'),
+    // Notice 配置已彻底移除（声明功能删除）
 
     // RSS
     rss: extractRSSConfig(),
@@ -2841,15 +2813,7 @@ async function build() {
         .replace(/{{DONATION_MODAL}}/g, generateDonationModalHTML(config.donation))
 
         // Notice
-        .replace(/{{NOTICE}}/g, generateNoticeHTML({
-            enabled: config.noticeEnabled,
-            type: config.noticeType,
-            icon: config.noticeIcon,
-            text: config.noticeText
-        }))
-        .replace(/{{SKELETON_NOTICE}}/g, generateSkeletonNoticeHTML({
-            enabled: config.noticeEnabled
-        }))
+        // Notice 渲染已彻底移除（声明功能删除）
 
         // RSS
         .replace(/{{RSS}}/g, generateRSSHTML(rssArticles, config.rss))
@@ -3038,6 +3002,109 @@ async function build() {
         console.log('📄 404.html: ' + formatSize(html404Size.original) + ' → ' + formatSize(html404Size.minified) + ' (节省 ' + calcReduction(html404Size.original, html404Size.minified) + ')');
     } else {
         console.log('   ⚠️ 找不到 templates/404.template.html，跳过生成');
+    }
+
+    // ========== 生成简历页面 ==========
+    console.log('📄 生成简历页面...');
+    const templateResumePath = path.join(templatesDir, 'resume.template.html');
+    if (fs.existsSync(templateResumePath)) {
+        const resumeCfg = parseResumeConfig();
+        if (resumeCfg) {
+            let htmlResume = renderPartials(fs.readFileSync(templateResumePath, 'utf8'));
+            const b = resumeCfg.basics || {};
+            const emailEncoded = encodeEmail(b.email || '');
+            htmlResume = htmlResume
+                .replace(/{{FAVICON_LINKS}}/g, generateFaviconLinks(''))
+                .replace(/{{THEME_INIT_SCRIPT}}/g, generateThemeInitScript())
+                .replace(/{{DEFAULT_THEME_VARS}}/g, generateDefaultThemeCSS())
+                .replace(/\{\{NAME\}\}/g, escapeHTML(b.name || ''))
+                .replace(/\{\{TITLE\}\}/g, escapeHTML(b.title || ''))
+                .replace(/\{\{SCHOOL\}\}/g, escapeHTML(b.school || ''))
+                .replace(/\{\{AVATAR\}\}/g, b.avatar || '')
+                .replace(/\{\{PHONE\}\}/g, escapeHTML(b.phone || ''))
+                .replace(/\{\{EMAIL\}\}/g, escapeHTML(b.email || ''))
+                .replace(/\{\{EMAIL_ENCODED\}\}/g, emailEncoded)
+                .replace(/\{\{MBTI\}\}/g, escapeHTML(b.mbti || ''))
+                .replace(/\{\{WEBSITE\}\}/g, escapeHTML(b.website || ''))
+                .replace(/\{\{GITHUB\}\}/g, escapeHTML(b.github || ''))
+                .replace(/\{\{EDUCATION_HTML\}\}/g, (resumeCfg.education || []).map(edu => `
+                    <div class="item">
+                        <div class="item-head">
+                            <div class="item-title">${escapeHTML(edu.school)}<span class="sub">${escapeHTML(edu.major || '')}${edu.major && edu.degree ? ' · ' : ''}${escapeHTML(edu.degree || '')}</span></div>
+                            <div class="item-meta">${escapeHTML(edu.period || '')}</div>
+                        </div>
+                        ${edu.gpa ? `<div class="item-meta" style="color:var(--accent)">${escapeHTML(edu.gpa)}</div>` : ''}
+                    </div>`).join(''))
+                .replace(/\{\{SKILLS_HTML\}\}/g, (resumeCfg.skills || []).map(s => `
+                    <div class="sk-card">
+                        <div class="cat"><i class="fa-solid fa-chevron-right" style="font-size:9px"></i>${escapeHTML(s.category)}</div>
+                        <div class="desc">${escapeHTML(s.description)}</div>
+                    </div>`).join(''))
+                .replace(/\{\{PUBLICATIONS_HTML\}\}/g, (resumeCfg.publications || []).map(p => `
+                    <div class="item">
+                        <div class="item-head">
+                            <div class="item-title">${escapeHTML(p.title)}${p.abbrev ? `<span class="sub">${escapeHTML(p.abbrev)}</span>` : ''}</div>
+                            <div class="item-meta">${escapeHTML(p.period || '')}</div>
+                        </div>
+                        <div class="item-tags">
+                            ${p.venue ? `<span class="tag">${escapeHTML(p.venue)}</span>` : ''}
+                            ${p.role ? `<span class="tag">${escapeHTML(p.role)}</span>` : ''}
+                        </div>
+                        ${p.highlights && p.highlights.length ? `<ul class="bul">${p.highlights.map(h => `<li>${escapeHTML(h)}</li>`).join('')}</ul>` : ''}
+                    </div>`).join(''))
+                .replace(/\{\{OPENSOURCE_HTML\}\}/g, (resumeCfg.openSource || []).map(o => `
+                    <div class="item">
+                        <div class="item-head">
+                            <div class="item-title">${o.url ? `<a href="${escapeHTML(o.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none">${escapeHTML(o.name)}</a>` : escapeHTML(o.name)}${o.org ? `<span class="sub">${escapeHTML(o.org)}</span>` : ''}</div>
+                            <div class="item-meta">${escapeHTML(o.period || '')}</div>
+                        </div>
+                        <div class="item-tags">
+                            ${o.role ? `<span class="tag">${escapeHTML(o.role)}</span>` : ''}
+                            ${o.impact ? `<span class="tag" style="background:rgba(255,193,7,.15);color:#ffc107;border-color:rgba(255,193,7,.35)">⭐ ${escapeHTML(o.impact)}</span>` : ''}
+                        </div>
+                        <div class="item-desc">${escapeHTML(o.description)}</div>
+                    </div>`).join(''))
+                .replace(/\{\{PROJECTS_HTML\}\}/g, (resumeCfg.projects || []).map(p => `
+                    <div class="item">
+                        <div class="item-head">
+                            <div class="item-title">${escapeHTML(p.name)}${p.tag ? `<span class="sub">${escapeHTML(p.tag)}</span>` : ''}</div>
+                            <div class="item-meta">${escapeHTML(p.period || '')}</div>
+                        </div>
+                        <div class="item-tags">
+                            ${p.role ? `<span class="tag">${escapeHTML(p.role)}</span>` : ''}
+                        </div>
+                        ${p.impact ? `<div class="item-meta" style="color:var(--accent)">${escapeHTML(p.impact)}</div>` : ''}
+                        <div class="item-desc">${escapeHTML(p.description)}</div>
+                    </div>`).join(''))
+                .replace(/\{\{AWARDS_HTML\}\}/g, (resumeCfg.awards || []).map(a => {
+                    const level = a.level || '';
+                    const cls = /一等奖|特等奖|金/i.test(level) ? 'level-gold'
+                        : /二等奖|银/i.test(level) ? 'level-silver'
+                        : /三等奖|铜/i.test(level) ? 'level-bronze'
+                        : 'level-award';
+                    return `<div class="award-row">
+                        <div class="award-name">${escapeHTML(a.name)}<small>· ${escapeHTML(level)}</small></div>
+                        <span class="tag ${cls}">${escapeHTML(a.date || '')}</span>
+                    </div>`;
+                }).join(''));
+
+            htmlResume = rewriteAssetUrls(htmlResume, '');
+            htmlResume = processInlineCSS(htmlResume, minifyConfig);
+            htmlResume = await processInlineJS(htmlResume, minifyConfig);
+            const processedResumeHTML = await processHTML(htmlResume, minifyConfig);
+            const resumeSize = {
+                original: Buffer.byteLength(htmlResume, 'utf8'),
+                minified: Buffer.byteLength(processedResumeHTML, 'utf8')
+            };
+            const resumeOutDir = path.join(distDir, 'resume');
+            if (!fs.existsSync(resumeOutDir)) fs.mkdirSync(resumeOutDir, { recursive: true });
+            fs.writeFileSync(path.join(resumeOutDir, 'index.html'), processedResumeHTML, 'utf8');
+            console.log('📄 resume/index.html: ' + formatSize(resumeSize.original) + ' → ' + formatSize(resumeSize.minified) + ' (节省 ' + calcReduction(resumeSize.original, resumeSize.minified) + ')');
+        } else {
+            console.log('   ⚠️ 解析 src/resume.js 失败，跳过简历页面');
+        }
+    } else {
+        console.log('   ⚠️ 找不到 templates/resume.template.html，跳过生成');
     }
 
     // ========== 生成动态页面 ==========
@@ -3324,6 +3391,35 @@ async function build() {
     }
     if (config.projects.enabled && githubRepos.length > 0) {
         console.log('📦 GitHub 项目: ' + githubRepos.length + ' 个');
+    }
+}
+
+// 强 eval 解析简历配置（借鉴 editor.js 的 parseFullConfig，避开正则抽取的坑）
+function parseResumeConfig() {
+    try {
+        const p = path.join(rootDir, 'src', 'resume.js');
+        const raw = fs.readFileSync(p, 'utf8');
+        const marker = 'window.RESUME_CONFIG = ';
+        const idx = raw.indexOf(marker);
+        if (idx === -1) return null;
+        const braceStart = raw.indexOf('{', idx);
+        if (braceStart === -1) return null;
+        let depth = 0, endIdx = -1, inStr = false, strCh = '';
+        for (let i = braceStart; i < raw.length; i++) {
+            const ch = raw[i];
+            if (!inStr) {
+                if (ch === '"' || ch === "'" || ch === '`') { inStr = true; strCh = ch; }
+                else if (ch === '{') depth++;
+                else if (ch === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+            } else {
+                if (ch === strCh && raw[i - 1] !== '\\') { inStr = false; strCh = ''; }
+            }
+        }
+        if (endIdx === -1) return null;
+        return new Function('return ' + raw.substring(braceStart, endIdx + 1))();
+    } catch (e) {
+        console.error('⚠️  解析 src/resume.js 失败:', e.message);
+        return null;
     }
 }
 

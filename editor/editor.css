@@ -736,3 +736,35 @@ input[type="number"] { width: 80px; }
     animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ========== 对象列表条目（简历编辑器用） ========== */
+.obj-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.obj-item {
+    border: 1px solid var(--card-border-muted);
+    border-radius: 10px;
+    padding: 12px 12px 4px;
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color .2s;
+}
+.obj-item:hover { border-color: var(--card-border-strong); }
+.obj-item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.obj-item-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 2px 8px;
+    border-radius: 4px;
+}

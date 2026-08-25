@@ -198,10 +198,10 @@ window.HOMEPAGE_CONFIG = {
         {
             name: "简历",
             description: "我的在线简历",
-            url: "https://your-resume-link.com",
+            url: "/resume",
             icon: "fa-solid fa-file-lines",
             brand: "resume",
-            external: true,
+            external: false,
             color: "#6366f1",
             enabled: true
         },
