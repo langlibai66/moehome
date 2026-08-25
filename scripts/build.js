@@ -2443,7 +2443,7 @@ const config = {
 
     // Profile
     name: extractNestedString(/profile:\s*\{([\s\S]*?)\}/, 'name', 'MoeWah'),
-    avatar: extractNestedString(/profile:\s*\{([\s\S]*?)\}/, 'avatar', 'images/avatar.webp'),
+    avatar: extractString(/avatar:\s*['"`]([^'"`]+)['"`]/, 'images/avatar.webp'),
     taglinePrefix: extractNestedString(/tagline:\s*\{([\s\S]*?)\}/, 'prefix', '🐾'),
     taglineHighlight: extractNestedString(/tagline:\s*\{([\s\S]*?)\}/, 'highlight', '万物皆可萌！'),
 

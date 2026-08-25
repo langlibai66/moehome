@@ -6,7 +6,7 @@
 window.HOMEPAGE_CONFIG = {
     site: {
         name: "晨旭不想写程序",
-        tagline: "开发者 / 技术爱好者",
+        tagline: "技术爱好者",
         url: "",
         ogImage: "/images/avatar.jpg"
     },
@@ -208,7 +208,7 @@ window.HOMEPAGE_CONFIG = {
         {
             name: "GitHub",
             description: "开源项目 & 代码",
-            url: "https://github.com/yourusername",
+            url: "https://github.com/langlibai66",
             icon: "fa-brands fa-github",
             brand: "github",
             external: true,
@@ -218,7 +218,7 @@ window.HOMEPAGE_CONFIG = {
         {
             name: "Email",
             description: "联系我",
-            url: "mailto:your-email@example.com",
+            url: "aiyangcx@gmail.com",
             icon: "fa-solid fa-envelope",
             brand: "email",
             external: false,
@@ -229,7 +229,7 @@ window.HOMEPAGE_CONFIG = {
         {
             name: "小红书",
             description: "我的小红书主页",
-            url: "https://www.xiaohongshu.com/user/profile/your-id",
+            url: "https://www.xiaohongshu.com/user/profile/62ee3371000000001f015396",
             icon: "fa-solid fa-book-open",
             brand: "xiaohongshu",
             external: true,
@@ -258,8 +258,8 @@ window.HOMEPAGE_CONFIG = {
     },
     footer: {
         copyright: {
-            year: "2025",
-            name: "杨晨旭",
+            year: "2026",
+            name: "AAAIEEE",
             url: ""
         },
         icp: {
