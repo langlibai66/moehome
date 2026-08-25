@@ -1,19 +1,19 @@
 {
-  "name": "moehome",
-  "version": "2.2.0",
-  "description": "MoeWah Personal Homepage",
+  "name": "langlibai66-homepage",
+  "version": "2.3.0",
+  "description": "个人主页 · 可视化编辑 + 静态构建 + 自动部署",
   "scripts": {
     "build": "node scripts/build.js",
-    "dev": "echo '开发模式：直接打开 dist/index.html'",
-    "serve": "npx http-server dist -p 8080",
     "editor": "node editor-server.js",
+    "serve": "npx http-server dist -p 8080",
     "publish": "node publish.js"
   },
   "keywords": [
     "homepage",
-    "personal-site"
+    "personal-site",
+    "static-site",
+    "visual-editor"
   ],
-  "author": "MoeWah",
   "license": "MIT",
   "devDependencies": {
     "html-minifier-terser": "^7.2.0",
