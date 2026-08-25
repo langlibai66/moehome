@@ -82,21 +82,72 @@ async function main() {
             req.on('end', () => {
                 try {
                     const { dataUrl } = JSON.parse(body);
-                    // Extract base64 data from data URL
                     const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
                     if (!matches) throw new Error('Invalid data URL');
-
                     const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
                     const imagesDir = path.join(PROJECT_ROOT, 'images');
                     if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
-
                     const avatarPath = path.join(imagesDir, 'avatar.' + ext);
                     fs.writeFileSync(avatarPath, Buffer.from(matches[2], 'base64'));
+                    res.writeHead(200); res.end(JSON.stringify({ success: true, path: '/images/avatar.' + ext }));
+                } catch (e) {
+                    res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
 
-                    res.writeHead(200); res.end(JSON.stringify({
-                        success: true,
-                        path: '/images/avatar.' + ext
-                    }));
+        // API: POST backup config (create a backup before save)
+        if (url.pathname === '/api/backup' && req.method === 'POST') {
+            try {
+                const configPath = path.join(PROJECT_ROOT, 'src', 'config.js');
+                const backupDir = path.join(PROJECT_ROOT, '.editor-backups');
+                if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const backupPath = path.join(backupDir, `config-${timestamp}.js`);
+                fs.copyFileSync(configPath, backupPath);
+                // Keep only last 10 backups
+                const backups = fs.readdirSync(backupDir).filter(f => f.startsWith('config-')).sort().reverse();
+                backups.slice(10).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
+                res.writeHead(200); res.end(JSON.stringify({ success: true, backup: backupPath }));
+            } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+        }
+
+        // API: GET list backups
+        if (url.pathname === '/api/backups' && req.method === 'GET') {
+            try {
+                const backupDir = path.join(PROJECT_ROOT, '.editor-backups');
+                if (!fs.existsSync(backupDir)) { res.writeHead(200); res.end(JSON.stringify({ backups: [] })); return; }
+                const backups = fs.readdirSync(backupDir)
+                    .filter(f => f.startsWith('config-') && f.endsWith('.js'))
+                    .sort()
+                    .reverse()
+                    .map(f => {
+                        const stat = fs.statSync(path.join(backupDir, f));
+                        return { name: f, time: stat.mtime.toISOString(), size: stat.size };
+                    });
+                res.writeHead(200); res.end(JSON.stringify({ backups }));
+            } catch (e) {
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+        }
+
+        // API: POST restore backup
+        if (url.pathname === '/api/restore' && req.method === 'POST') {
+            let body = '';
+            req.on('data', c => body += c);
+            req.on('end', () => {
+                try {
+                    const { name } = JSON.parse(body);
+                    const backupPath = path.join(PROJECT_ROOT, '.editor-backups', name);
+                    const configPath = path.join(PROJECT_ROOT, 'src', 'config.js');
+                    if (!fs.existsSync(backupPath)) throw new Error('Backup not found');
+                    fs.copyFileSync(backupPath, configPath);
+                    res.writeHead(200); res.end(JSON.stringify({ success: true }));
                 } catch (e) {
                     res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
                 }

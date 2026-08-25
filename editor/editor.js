@@ -46,26 +46,9 @@ function parseFullConfig(raw) {
 }
 
 // ============================================================
-// CONFIG WRITER — parse → merge → serialize (no regex replace)
+// CONFIG WRITER — serialize directly from cfg object
 // ============================================================
-function buildConfigSource() {
-    const original = parseFullConfig(rawConfig);
-    mergeConfig(original, cfg);
-    return serializeConfig(original);
-}
-
-function mergeConfig(target, source) {
-    for (const [key, value] of Object.entries(source)) {
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-            if (!target[key] || typeof target[key] !== 'object') target[key] = {};
-            mergeConfig(target[key], value);
-        } else if (Array.isArray(value)) {
-            target[key] = [...value];
-        } else if (value !== undefined && value !== null && value !== '') {
-            target[key] = value;
-        }
-    }
-}
+// (serializeConfig is defined below in the serialization section)
 
 function serializeConfig(obj) {
     const lines = [];
@@ -694,8 +677,13 @@ function debouncedSave() {
 }
 
 async function saveConfig() {
+    // Auto-backup before saving
     try {
-        rawConfig = buildConfigSource();
+        await fetch('/api/backup', { method: 'POST' });
+    } catch (e) { /* silent */ }
+
+    try {
+        rawConfig = serializeConfig(cfg);
         const res = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -758,18 +746,91 @@ async function doBuild() {
         const res = await fetch('/api/build', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            const previewUrl = `${window.location.origin}/`;
-            $('preview-url').textContent = previewUrl;
-            $('preview-placeholder').classList.add('hidden');
-            const wrap = $('preview-frame-wrap');
-            wrap.classList.remove('hidden');
-            $('preview-iframe').src = previewUrl;
-            showToast('构建完成', 'success');
+            window.open('/', '_blank');
+            showToast('构建完成，已在新标签页打开预览', 'success');
         } else {
             showToast('构建失败', 'error');
         }
     } catch (e) {
         showToast('构建请求失败', 'error');
+    }
+}
+
+async function doBackup() {
+    try {
+        const res = await fetch('/api/backup', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('备份成功', 'success');
+        } else {
+            showToast('备份失败: ' + data.error, 'error');
+        }
+    } catch (e) {
+        showToast('备份失败', 'error');
+    }
+}
+
+async function doRollback() {
+    try {
+        const res = await fetch('/api/backups');
+        const data = await res.json();
+        const backups = data.backups || [];
+
+        if (backups.length === 0) {
+            showToast('没有可用的备份', 'warning');
+            return;
+        }
+
+        // Show backup list in modal
+        const overlay = $('modal-overlay');
+        const title = $('modal-title');
+        const body = $('modal-body');
+
+        title.textContent = '选择要回退的备份';
+        const backupList = backups.map((b, i) => {
+            const time = new Date(b.time).toLocaleString('zh-CN');
+            return `<div class="backup-item" data-backup="${esc(b.name)}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--input-border)'">
+                <div>
+                    <div style="font-size:13px;color:var(--text)">${esc(b.name)}</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px">${time}</div>
+                </div>
+                <i class="fa-solid fa-clock-rotate-left" style="color:var(--text3)"></i>
+            </div>`;
+        }).join('');
+
+        body.innerHTML = `
+            <p style="color:var(--text-secondary);margin-bottom:12px;font-size:13px">点击选择一个备份进行回退（最多保留 10 个备份）：</p>
+            <div style="display:flex;flex-direction:column;gap:6px">${backupList}</div>
+            <div style="text-align:right;margin-top:14px"><button class="btn-sm" onclick="closeModal()">取消</button></div>
+        `;
+        overlay.classList.add('active');
+
+        // Bind click events to backup items
+        body.querySelectorAll('.backup-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const backupName = item.dataset.backup;
+                try {
+                    const restoreRes = await fetch('/api/restore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: backupName }),
+                    });
+                    const restoreData = await restoreRes.json();
+                    if (restoreData.success) {
+                        closeModal();
+                        showToast('回退成功，正在重新加载...', 'success');
+                        // Reload config
+                        setTimeout(() => location.reload(), 800);
+                    } else {
+                        showToast('回退失败: ' + restoreData.error, 'error');
+                    }
+                } catch (e) {
+                    showToast('回退失败', 'error');
+                }
+            });
+        });
+    } catch (e) {
+        showToast('获取备份列表失败', 'error');
     }
 }
 
@@ -852,6 +913,8 @@ function setupEvents() {
     });
 
     $('btn-build').addEventListener('click', doBuild);
+    $('btn-backup')?.addEventListener('click', doBackup);
+    $('btn-rollback')?.addEventListener('click', doRollback);
     $('btn-publish').addEventListener('click', doPublish);
     $('btn-refresh-preview').addEventListener('click', () => { $('preview-iframe').src = $('preview-iframe').src; });
     $('modal-close').addEventListener('click', closeModal);
