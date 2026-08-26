@@ -239,7 +239,7 @@ window.HOMEPAGE_CONFIG = {
         {
             name: "博客",
             description: "我的个人博客",
-            url: "https://yourblog.com",
+            url: "https://blog.aaaieee.cn/",
             icon: "fa-solid fa-pen-nib",
             brand: "blog",
             external: true,
