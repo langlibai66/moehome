@@ -71,7 +71,7 @@ window.HOMEPAGE_CONFIG = {
             prefix: "🐱",
             highlight: "欢迎来到我的主页"
         },
-        avatar: "images/avatar.jpg"
+        avatar: "/images/avatar.png"
     },
     favicon: {
         path: ""
