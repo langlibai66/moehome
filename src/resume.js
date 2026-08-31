@@ -29,8 +29,15 @@ window.RESUME_CONFIG = {
                 school: "太原理工大学",
                 major: "人工智能",
                 degree: "本科",
-                gpa: "GPA 3.79 / 5.0",
+                gpa: "GPA 3.86 / 5.0",
                 period: "2022.09 – 2026.06"
+            },
+            {
+                school: "太原理工大学",
+                major: "计算机技术",
+                degree: "硕士",
+                gpa: "/",
+                period: "2026.09-至今"
             }
         ],
         skills: [
